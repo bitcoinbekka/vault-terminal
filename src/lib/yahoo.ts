@@ -4,14 +4,51 @@
  * Quotes, candles, search, and trending come from Yahoo Finance; options chains
  * come from the CBOE delayed-quotes CDN (free, no API key, full greeks).
  *
- * Neither host sends CORS headers, so browsers can't read them directly. Every
- * request therefore goes through the Shakespeare CORS proxy first, then falls
- * back to a direct fetch (which works in environments where CORS is relaxed).
+ * Neither host sends CORS headers, so browsers can't read them directly. The
+ * fetch layer therefore tries, in order:
+ *
+ *   1. A same-origin reverse proxy (set VITE_MARKET_BASE at build time). If the
+ *      app and proxy share an origin, no CORS headers are needed at all — the
+ *      recommended setup for self-hosting. Paths: /yahoo/* and /cboe/*.
+ *   2. A CORS proxy using the `?url=` convention (VITE_CORS_PROXY at build
+ *      time, or the Shakespeare default).
+ *   3. A direct fetch (works only where CORS is relaxed).
+ *
+ * Example build for a self-hosted VPS:
+ *   VITE_MARKET_BASE=https://vault.example.com npm run build
  */
 
 const YAHOO_BASE = 'https://query1.finance.yahoo.com';
 const CBOE_BASE = 'https://cdn.cboe.com';
-const PROXY_BASE = 'https://proxy.shakespeare.diy/?url=';
+const DEFAULT_PROXY_BASE = 'https://proxy.shakespeare.diy/?url=';
+
+function getViteEnv(name: string): string | undefined {
+  try {
+    const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+    return env?.[name];
+  } catch {
+    return undefined;
+  }
+}
+
+function buildAttempts(url: string): string[] {
+  const attempts: string[] = [];
+
+  const marketBase = getViteEnv('VITE_MARKET_BASE')?.trim().replace(/\/+$/, '');
+  if (marketBase) {
+    if (url.startsWith(YAHOO_BASE)) {
+      attempts.push(`${marketBase}/yahoo/${url.slice(YAHOO_BASE.length)}`);
+    } else if (url.startsWith(CBOE_BASE)) {
+      attempts.push(`${marketBase}/cboe/${url.slice(CBOE_BASE.length)}`);
+    }
+  }
+
+  const proxyBase = getViteEnv('VITE_CORS_PROXY')?.trim() || DEFAULT_PROXY_BASE;
+  attempts.push(`${proxyBase}${encodeURIComponent(url)}`);
+
+  attempts.push(url);
+  return attempts;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -123,8 +160,7 @@ export interface OptionsData {
 // ---------------------------------------------------------------------------
 
 async function fetchText(url: string, signal?: AbortSignal): Promise<string> {
-  // Try the CORS proxy first, then the direct URL.
-  const attempts = [`${PROXY_BASE}${encodeURIComponent(url)}`, url];
+  const attempts = buildAttempts(url);
   let lastError: unknown;
 
   for (const attempt of attempts) {
