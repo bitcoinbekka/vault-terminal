@@ -76,6 +76,12 @@ export function TerminalLayout() {
             >
               TERMINAL
             </Link>
+            <Link
+              to="/journal"
+              className="rounded px-2 py-1 text-xs font-semibold tracking-wider text-muted-foreground hover:text-foreground"
+            >
+              JOURNAL
+            </Link>
           </nav>
 
           <div className="ml-auto flex items-center gap-3">

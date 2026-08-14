@@ -112,6 +112,47 @@ the alert as fired (re-armable).
 - `value` — target price for above/below, target percent for pctUp/pctDown.
 - `createdAt` / `firedAt` — unix seconds; `firedAt` absent while armed.
 
+## Trade Journal (`d` = `vault:trades`)
+
+Stores the user's logged buy/sell trades. Realized P/L, win rate and average
+hold time are computed client-side with FIFO cost-basis accounting
+(see `src/lib/journal.ts`).
+
+**Tags**
+
+| Tag | Values | Purpose |
+| --- | --- | --- |
+| `d` | `vault:trades` | Addressable identifier |
+| `client` | hostname | Added automatically by the publish hook |
+
+**Content** (JSON):
+
+```json
+{
+  "version": 1,
+  "trades": [
+    {
+      "id": "cryptographic-uuid",
+      "symbol": "NVDA",
+      "side": "buy",
+      "quantity": 10,
+      "price": 480.5,
+      "date": 1786550000,
+      "fees": 0.5,
+      "note": "Breakout retest"
+    }
+  ]
+}
+```
+
+**Field semantics**
+
+- `side` — `buy` opens a lot, `sell` closes lots FIFO (oldest first).
+- `quantity` — shares (option contracts are logged at 1× contract count).
+- `price` — execution price.
+- `date` — unix seconds of execution.
+- `fees` — optional, subtracted from realized P/L.
+
 ## Queries
 
 All events are read with the same author-constrained pattern (shown here for

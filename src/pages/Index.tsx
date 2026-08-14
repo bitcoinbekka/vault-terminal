@@ -4,6 +4,7 @@ import { Newspaper } from 'lucide-react';
 import { useYahooSearch } from '@/hooks/useYahoo';
 
 import { MarketIndices } from '@/components/terminal/MarketIndices';
+import { MarketRegime } from '@/components/terminal/MarketRegime';
 import { WatchlistPanel } from '@/components/terminal/WatchlistPanel';
 import { TrendingPanel } from '@/components/terminal/TrendingPanel';
 import { PortfolioPanel } from '@/components/terminal/PortfolioPanel';
@@ -24,6 +25,7 @@ const Index = () => {
   return (
     <div className="space-y-4">
       <MarketIndices />
+      <MarketRegime />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <WatchlistPanel className="lg:col-span-2" />
