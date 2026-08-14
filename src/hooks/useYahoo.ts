@@ -81,7 +81,7 @@ export function useQuotes(symbols: string[]) {
 }
 
 /** Parallel CBOE options chains for a list of underlyings. */
-export function useCboeChains(symbols: string[]) {
+export function useCboeChains(symbols: string[], enabled = true) {
   const unique = [...new Set(symbols.map(normalizeSymbol))];
 
   return useQueries({
@@ -90,7 +90,7 @@ export function useCboeChains(symbols: string[]) {
       queryFn: ({ signal }) => fetchOptionsChain(symbol, signal),
       staleTime: 5 * 60_000,
       retry: 1,
-      enabled: isValidSymbol(symbol),
+      enabled: enabled && isValidSymbol(symbol),
     })),
   });
 }

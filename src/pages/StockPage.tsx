@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useSeoMeta } from '@unhead/react';
-import { ArrowLeft, BriefcaseBusiness, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, BellPlus, BriefcaseBusiness, Eye, EyeOff } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,11 +12,13 @@ import { useYahooChart, useYahooOptions, useYahooSearch } from '@/hooks/useYahoo
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useToast } from '@/hooks/useToast';
 
-import { CandleChart } from '@/components/terminal/CandleChart';
+import { CandleChart, type ChartOverlays } from '@/components/terminal/CandleChart';
+import { IndicatorToolbar } from '@/components/terminal/IndicatorToolbar';
 import { OptionsChain } from '@/components/terminal/OptionsChain';
 import { NewsFeed } from '@/components/terminal/NewsFeed';
 import { PriceChange } from '@/components/terminal/PriceChange';
 import { AddPositionDialog } from '@/components/terminal/AddPositionDialog';
+import { AddAlertDialog } from '@/components/terminal/AddAlertDialog';
 
 import { CHART_RANGES, DEFAULT_RANGE, isValidSymbol, normalizeSymbol } from '@/lib/yahoo';
 import { formatCompact, formatPrice, formatTime } from '@/lib/format';
@@ -38,6 +40,8 @@ const StockPage = () => {
 
   const [rangeKey, setRangeKey] = useState(DEFAULT_RANGE);
   const [addPosOpen, setAddPosOpen] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [overlays, setOverlays] = useState<ChartOverlays>({});
   const [tab, setTab] = useState('overview');
 
   const chart = useYahooChart(symbol, rangeKey, valid);
@@ -143,6 +147,9 @@ const StockPage = () => {
           <Button onClick={() => setAddPosOpen(true)} size="sm" variant="outline" className="font-mono text-xs">
             <BriefcaseBusiness className="size-3.5" /> TRACK POSITION
           </Button>
+          <Button onClick={() => setAlertOpen(true)} size="sm" variant="outline" className="font-mono text-xs">
+            <BellPlus className="size-3.5" /> ALERT
+          </Button>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
@@ -192,6 +199,11 @@ const StockPage = () => {
           </div>
         </div>
 
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
+          <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">INDICATORS</span>
+          <IndicatorToolbar value={overlays} onChange={setOverlays} />
+        </div>
+
         {chart.isPending && !chart.data ? (
           <Skeleton className="w-full" style={{ height: 340 }} />
         ) : chart.isError ? (
@@ -200,7 +212,7 @@ const StockPage = () => {
             refreshing.
           </p>
         ) : (
-          <CandleChart candles={candles} height={340} />
+          <CandleChart candles={candles} height={340} overlays={overlays} />
         )}
       </section>
 
@@ -248,6 +260,7 @@ const StockPage = () => {
       </section>
 
       <AddPositionDialog open={addPosOpen} onOpenChange={setAddPosOpen} />
+      <AddAlertDialog symbol={symbol} open={alertOpen} onOpenChange={setAlertOpen} />
     </div>
   );
 };

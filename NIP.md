@@ -73,9 +73,49 @@ Stores the user's portfolio: equity shares and option contracts.
 - `strike` / `expiry` / `optionType` — parsed from the OCC contract; denormalized for convenience.
 - `note` — optional free-text.
 
+## Alerts (`d` = `vault:alerts`)
+
+Stores the user's price alerts. Checked client-side every 60s while the terminal
+is open; fires browser notifications + sound when a condition is met, then marks
+the alert as fired (re-armable).
+
+**Tags**
+
+| Tag | Values | Purpose |
+| --- | --- | --- |
+| `d` | `vault:alerts` | Addressable identifier |
+| `client` | hostname | Added automatically by the publish hook |
+
+**Content** (JSON):
+
+```json
+{
+  "version": 1,
+  "alerts": [
+    {
+      "id": "cryptographic-uuid",
+      "symbol": "NVDA",
+      "direction": "above",
+      "value": 520,
+      "note": "Breakout level",
+      "createdAt": 1786730000,
+      "firedAt": 1786733600
+    }
+  ]
+}
+```
+
+**Field semantics**
+
+- `direction` — `above` (price > value), `below` (price < value), `pctUp`
+  (gains ≥ value % vs previous close), `pctDown` (falls ≥ value %).
+- `value` — target price for above/below, target percent for pctUp/pctDown.
+- `createdAt` / `firedAt` — unix seconds; `firedAt` absent while armed.
+
 ## Queries
 
-Both events are read with a single, author-constrained query:
+All events are read with the same author-constrained pattern (shown here for
+the watchlist):
 
 ```ts
 nostr.query([{ kinds: [30078], authors: [user.pubkey], '#d': ['vault:watchlist'], limit: 1 }]);

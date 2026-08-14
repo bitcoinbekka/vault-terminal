@@ -5,6 +5,8 @@ import { Activity } from 'lucide-react';
 import { LoginArea } from '@/components/auth/LoginArea';
 import { cn } from '@/lib/utils';
 import { TickerTape } from './TickerTape';
+import { AlertBell } from './AlertBell';
+import { AlertWatcher } from './AlertWatcher';
 
 /** New York market clock + session badge. */
 function MarketClock() {
@@ -78,10 +80,12 @@ export function TerminalLayout() {
 
           <div className="ml-auto flex items-center gap-3">
             <MarketClock />
+            <AlertBell />
             <LoginArea className="max-w-56" />
           </div>
         </div>
         <TickerTape />
+        <AlertWatcher />
       </header>
 
       <main className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-4 sm:py-6">

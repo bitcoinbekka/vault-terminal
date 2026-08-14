@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import type { NostrEvent } from '@nostrify/nostrify';
@@ -43,7 +43,7 @@ export function useWatchlist() {
   const { mutateAsync: publish } = useNostrPublish();
 
   const pubkey = user?.pubkey;
-  const queryKey = ['vault', 'watchlist', pubkey] as const;
+  const queryKey = useMemo(() => ['vault', 'watchlist', pubkey] as const, [pubkey]);
 
   const query = useQuery({
     queryKey,

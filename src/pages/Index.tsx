@@ -7,6 +7,8 @@ import { MarketIndices } from '@/components/terminal/MarketIndices';
 import { WatchlistPanel } from '@/components/terminal/WatchlistPanel';
 import { TrendingPanel } from '@/components/terminal/TrendingPanel';
 import { PortfolioPanel } from '@/components/terminal/PortfolioPanel';
+import { MoversScanner } from '@/components/terminal/MoversScanner';
+import { OptionsFlow } from '@/components/terminal/OptionsFlow';
 import { NewsFeed } from '@/components/terminal/NewsFeed';
 import { Panel } from '@/components/terminal/Panel';
 
@@ -14,7 +16,7 @@ const Index = () => {
   useSeoMeta({
     title: 'Vault Terminal — Decentralized Market Terminal',
     description:
-      'Track your stocks, options and portfolio with a Bloomberg-style terminal. Watchlist and positions live on Nostr.',
+      'Track your stocks, options and portfolio with a Bloomberg-style terminal. Watchlist, positions and alerts live on Nostr.',
   });
 
   const marketNews = useYahooSearch('stocks');
@@ -26,6 +28,11 @@ const Index = () => {
       <div className="grid gap-4 lg:grid-cols-3">
         <WatchlistPanel className="lg:col-span-2" />
         <TrendingPanel />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <MoversScanner className="lg:col-span-2" />
+        <OptionsFlow />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
