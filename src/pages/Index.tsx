@@ -1,22 +1,42 @@
 import { useSeoMeta } from '@unhead/react';
+import { Newspaper } from 'lucide-react';
 
-// FIXME: Update this page (the content is just a fallback if you fail to update the page)
+import { useYahooSearch } from '@/hooks/useYahoo';
+
+import { MarketIndices } from '@/components/terminal/MarketIndices';
+import { WatchlistPanel } from '@/components/terminal/WatchlistPanel';
+import { TrendingPanel } from '@/components/terminal/TrendingPanel';
+import { PortfolioPanel } from '@/components/terminal/PortfolioPanel';
+import { NewsFeed } from '@/components/terminal/NewsFeed';
+import { Panel } from '@/components/terminal/Panel';
 
 const Index = () => {
   useSeoMeta({
-    title: 'Welcome to Your Blank App',
-    description: 'A modern Nostr client application built with React, TailwindCSS, and Nostrify.',
+    title: 'Vault Terminal — Decentralized Market Terminal',
+    description:
+      'Track your stocks, options and portfolio with a Bloomberg-style terminal. Watchlist and positions live on Nostr.',
   });
 
+  const marketNews = useYahooSearch('stocks');
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">
-          Welcome to Your Blank App
-        </h1>
-        <p className="text-xl text-gray-600 dark:text-gray-400">
-          Start building your amazing project here!
-        </p>
+    <div className="space-y-4">
+      <MarketIndices />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <WatchlistPanel className="lg:col-span-2" />
+        <TrendingPanel />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <PortfolioPanel className="lg:col-span-2" />
+        <Panel
+          title="MARKET NEWS"
+          id="news"
+          right={<Newspaper className="size-3.5 text-muted-foreground" />}
+        >
+          <NewsFeed items={marketNews.data?.news ?? []} compact />
+        </Panel>
       </div>
     </div>
   );

@@ -1,0 +1,191 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Loader2, Plus, X } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { LoginArea } from '@/components/auth/LoginArea';
+
+import { useQuotes } from '@/hooks/useYahoo';
+import { useWatchlist } from '@/hooks/useWatchlist';
+import { usePositions } from '@/hooks/usePositions';
+import { useToast } from '@/hooks/useToast';
+
+import { STARTER_WATCHLIST } from '@/lib/yahoo';
+import { formatCompact, formatPrice } from '@/lib/format';
+
+import { Panel } from './Panel';
+import { PriceChange } from './PriceChange';
+import { Sparkline } from './Sparkline';
+import { AddSymbolDialog } from './AddSymbolDialog';
+
+/** The user's watchlist with live quotes. Backed by Nostr kind 30078. */
+export function WatchlistPanel() {
+  const { watchlist, isLoading, save, user } = useWatchlist();
+  const { positions } = usePositions();
+  const { toast } = useToast();
+  const [addOpen, setAddOpen] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  const display = user ? watchlist : watchlist.length > 0 ? watchlist : STARTER_WATCHLIST;
+  const quotes = useQuotes(display);
+
+  const positionMap = new Map<string, { qty: number; isOption: boolean }>();
+  for (const p of positions) {
+    const cur = positionMap.get(p.symbol);
+    positionMap.set(p.symbol, {
+      qty: (cur?.qty ?? 0) + (p.contract ? 0 : p.quantity),
+      isOption: Boolean(cur?.isOption) || Boolean(p.contract),
+    });
+  }
+
+  const remove = async (symbol: string) => {
+    setRemoving(symbol);
+    try {
+      await save(watchlist.filter((s) => s !== symbol));
+      toast({ title: 'Removed from watchlist', description: symbol });
+    } catch {
+      toast({ title: 'Failed to remove', variant: 'destructive' });
+    } finally {
+      setRemoving(null);
+    }
+  };
+
+  return (
+    <Panel
+      title={user ? 'WATCHLIST // YOUR STOCKS' : 'WATCHLIST // PREVIEW'}
+      id="watchlist"
+      right={
+        user ? (
+          <Button size="sm" variant="outline" className="h-7 gap-1 px-2 font-mono text-[11px]" onClick={() => setAddOpen(true)}>
+            <Plus className="size-3.5" /> ADD
+          </Button>
+        ) : undefined
+      }
+    >
+      {!user && (
+        <div className="flex flex-col items-start gap-2 border-b border-border bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            Showing a preview list. Log in with Nostr to track your own portfolio across any device.
+          </p>
+          <LoginArea className="w-full sm:w-auto" />
+        </div>
+      )}
+
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="font-mono text-[10px] tracking-wider text-muted-foreground">SYMBOL</TableHead>
+            <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">LAST</TableHead>
+            <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">CHG</TableHead>
+            <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">VOL</TableHead>
+            <TableHead className="hidden font-mono text-[10px] tracking-wider text-muted-foreground md:table-cell">1D</TableHead>
+            <TableHead className="w-10" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {quotes.map((q, i) => {
+            const symbol = display[i];
+            if (!symbol) return null;
+            const meta = q.data?.meta;
+            const prev = meta?.chartPreviousClose ?? meta?.previousClose;
+            const price = meta?.regularMarketPrice;
+            const change = price !== undefined && typeof prev === 'number' ? price - prev : null;
+            const pct = change !== null && prev ? (change / prev) * 100 : null;
+            const pos = positionMap.get(symbol);
+
+            if (q.isPending && !q.data) {
+              return (
+                <TableRow key={`${symbol}-loading`} className="hover:bg-transparent">
+                  <TableCell colSpan={6}>
+                    <div className="flex items-center gap-3 py-1">
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            }
+
+            return (
+              <TableRow key={symbol} className="group">
+                <TableCell className="max-w-[180px]">
+                  <Link to={`/stock/${symbol}`} className="flex flex-col">
+                    <span className="flex items-center gap-1.5 font-mono text-sm font-bold group-hover:text-signal">
+                      {symbol}
+                      {pos?.isOption ? (
+                        <span className="rounded-sm bg-signal/15 px-1 font-mono text-[9px] font-bold text-signal" title="Has option positions">OPT</span>
+                      ) : pos ? (
+                        <span className="rounded-sm bg-muted px-1 font-mono text-[9px] font-bold text-muted-foreground" title={`Position: ${pos.qty} shares`}>{pos.qty} SH</span>
+                      ) : null}
+                    </span>
+                    <span className="truncate text-[11px] text-muted-foreground">{meta?.longName ?? meta?.shortName}</span>
+                  </Link>
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm font-semibold tabular-nums">
+                  {formatPrice(price)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <PriceChange change={change} percent={pct} compact />
+                </TableCell>
+                <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                  {formatCompact(meta?.regularMarketVolume)}
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  <Sparkline data={(q.data?.candles ?? []).map((c) => c.c)} positive={(pct ?? 0) >= 0} width={88} height={24} />
+                </TableCell>
+                <TableCell className="text-right">
+                  {user ? (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-loss group-hover:opacity-100"
+                      aria-label={`Remove ${symbol}`}
+                      onClick={() => remove(symbol)}
+                      disabled={removing === symbol}
+                    >
+                      {removing === symbol ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+                    </Button>
+                  ) : null}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+
+          {!isLoading && display.length === 0 && (
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={6}>
+                <div className="px-4 py-10 text-center">
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    No symbols yet. Add tickers you own or follow to build your terminal.
+                  </p>
+                  {user ? (
+                    <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+                      <Plus className="mr-1 size-4" /> Add your first symbol
+                    </Button>
+                  ) : (
+                    <LoginArea className="w-full justify-center" />
+                  )}
+                </div>
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+
+      <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+        Delayed quotes · {user ? 'Saved to Nostr kind 30078 — follows your npub' : 'Log in to persist this list on Nostr'}
+      </div>
+
+      <AddSymbolDialog open={addOpen} onOpenChange={setAddOpen} />
+    </Panel>
+  );
+}

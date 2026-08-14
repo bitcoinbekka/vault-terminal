@@ -7,6 +7,10 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import App from './App.tsx';
 import './index.css';
 
+// Terminal fonts
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
+
 // FIXME: a custom font should be used. Eg:
 // import '@fontsource-variable/<font-name>';
 
