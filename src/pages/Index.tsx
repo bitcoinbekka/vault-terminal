@@ -24,18 +24,13 @@ const Index = () => {
 
   return (
     <div className="space-y-4">
+      {/* Your positions first — right under the ticker */}
+      <PortfolioPanel />
+
       <MarketIndices />
       <MarketRegime />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <WatchlistPanel className="lg:col-span-2" />
-        <TrendingPanel />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <PortfolioPanel className="lg:col-span-2" />
-        <OptionsFlow />
-      </div>
+      <WatchlistPanel />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <MoversScanner className="lg:col-span-2" />
@@ -46,6 +41,11 @@ const Index = () => {
         >
           <NewsFeed items={marketNews.data?.news ?? []} compact />
         </Panel>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <TrendingPanel />
+        <OptionsFlow />
       </div>
     </div>
   );

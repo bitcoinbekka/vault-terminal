@@ -270,10 +270,10 @@ export function PortfolioPanel() {
               <TableRow className="hover:bg-transparent">
                 <TableHead className="font-mono text-[10px] tracking-wider text-muted-foreground">SYMBOL / CONTRACT</TableHead>
                 <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">QTY</TableHead>
-                <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">AVG COST</TableHead>
+                <TableHead className="hidden text-right font-mono text-[10px] tracking-wider text-muted-foreground xl:table-cell">AVG COST</TableHead>
                 <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">LAST</TableHead>
                 <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">VALUE</TableHead>
-                <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">DAY P/L</TableHead>
+                <TableHead className="hidden text-right font-mono text-[10px] tracking-wider text-muted-foreground xl:table-cell">DAY P/L</TableHead>
                 <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">P/L</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
@@ -290,10 +290,10 @@ export function PortfolioPanel() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm tabular-nums">{r.qty}</TableCell>
-                    <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{formatPrice(r.avgCost)}</TableCell>
+                    <TableCell className="hidden text-right font-mono text-xs tabular-nums text-muted-foreground xl:table-cell">{formatPrice(r.avgCost)}</TableCell>
                     <TableCell className="text-right font-mono text-sm tabular-nums">{formatPrice(r.last)}</TableCell>
                     <TableCell className="text-right font-mono text-sm tabular-nums">{formatPrice(r.value)}</TableCell>
-                    <TableCell className={cn('text-right font-mono text-sm tabular-nums', colorForChange(r.dayPnl))}>
+                    <TableCell className={cn('hidden text-right font-mono text-sm tabular-nums xl:table-cell', colorForChange(r.dayPnl))}>
                       {formatSigned(r.dayPnl)}
                     </TableCell>
                     <TableCell className="text-right">
@@ -324,7 +324,7 @@ export function PortfolioPanel() {
                   TOTAL
                 </TableCell>
                 <TableCell className="text-right font-mono text-sm font-bold tabular-nums">{formatPrice(totals.value)}</TableCell>
-                <TableCell className={cn('text-right font-mono text-sm font-bold tabular-nums', colorForChange(totals.dayPnl))}>
+                <TableCell className={cn('hidden text-right font-mono text-sm font-bold tabular-nums xl:table-cell', colorForChange(totals.dayPnl))}>
                   {formatSigned(totals.dayPnl)}
                 </TableCell>
                 <TableCell className="text-right">
