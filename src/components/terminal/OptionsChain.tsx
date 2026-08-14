@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 
 import { useToast } from '@/hooks/useToast';
+import { expectedMove } from '@/lib/options';
 import {
   groupOptionsByExpiry,
   type OptionRow,
@@ -162,6 +163,9 @@ export function OptionsChain({ symbol, underlyingPrice, options, isLoading, isEr
 
   const bucket = expiry !== null ? grouped.get(expiry) : undefined;
 
+  // Expected move from the ATM straddle for the selected expiry (~1σ).
+  const move = useMemo(() => expectedMove(bucket, underlyingPrice), [bucket, underlyingPrice]);
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -187,6 +191,17 @@ export function OptionsChain({ symbol, underlyingPrice, options, isLoading, isEr
           CBOE DELAYED
         </Badge>
       </div>
+
+      {move !== null ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-signal/30 bg-signal/5 px-2.5 py-1.5">
+          <span className="font-mono text-[11px] font-bold tracking-wider text-signal">
+            EXPECTED MOVE ±{move.toFixed(2)}%
+          </span>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            ATM straddle · ~1σ to {expiry ? formatExpiration(expiry) : 'expiry'}
+          </span>
+        </div>
+      ) : null}
 
       {isLoading && expiries.length === 0 ? (
         <div className="space-y-2">

@@ -14,6 +14,20 @@ export const SECTOR_ETFS = [
   'XLK', 'XLF', 'XLE', 'XLV', 'XLI', 'XLY', 'XLP', 'XLU', 'XLB', 'XLRE', 'XLC',
 ];
 
+export const SECTOR_NAMES: Record<string, string> = {
+  XLK: 'Technology',
+  XLF: 'Financials',
+  XLE: 'Energy',
+  XLV: 'Health Care',
+  XLI: 'Industrials',
+  XLY: 'Consumer Disc.',
+  XLP: 'Consumer Staples',
+  XLU: 'Utilities',
+  XLB: 'Materials',
+  XLRE: 'Real Estate',
+  XLC: 'Communication',
+};
+
 export const MOVER_UNIVERSE = [...SECTOR_ETFS, ...MEGA_CAPS];
 
 export const UNIVERSE_LIMIT = 40;

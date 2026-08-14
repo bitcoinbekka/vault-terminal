@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 
 import { Panel } from './Panel';
 import { AddPositionDialog } from './AddPositionDialog';
+import { PayoffCard } from './OptionPayoff';
 
 interface Row {
   key: string;
@@ -56,6 +57,13 @@ export function PortfolioPanel() {
 
   const equityQuotes = useQuotes(equitySymbols);
   const chains = useCboeChains(optionUnderlyings);
+  // Underlying prices, for the option payoff markers (deduped with watchlist/tape).
+  const underlyingQuotes = useQuotes(optionUnderlyings);
+
+  const underlyingPriceFor = (symbol: string): number | null => {
+    const idx = optionUnderlyings.indexOf(symbol);
+    return underlyingQuotes[idx]?.data?.meta?.regularMarketPrice ?? null;
+  };
 
   const rows: Row[] = useMemo(() => {
     const out: Row[] = [];
@@ -339,6 +347,22 @@ export function PortfolioPanel() {
           </Table>
         </>
       )}
+
+      {user && options.length > 0 ? (
+        <div className="space-y-2 border-t border-border px-3 py-3">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">
+              OPTION PAYOFF // BREAKEVENS
+            </span>
+            <span className="font-mono text-[10px] text-muted-foreground">per contract · at expiry</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {options.map((p) => (
+              <PayoffCard key={p.contract} position={p} currentPrice={underlyingPriceFor(p.symbol)} />
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
         {user

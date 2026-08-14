@@ -8,6 +8,7 @@ import { MarketRegime } from '@/components/terminal/MarketRegime';
 import { WatchlistPanel } from '@/components/terminal/WatchlistPanel';
 import { TrendingPanel } from '@/components/terminal/TrendingPanel';
 import { PortfolioPanel } from '@/components/terminal/PortfolioPanel';
+import { SectorRotation } from '@/components/terminal/SectorRotation';
 import { MoversScanner } from '@/components/terminal/MoversScanner';
 import { OptionsFlow } from '@/components/terminal/OptionsFlow';
 import { NewsFeed } from '@/components/terminal/NewsFeed';
@@ -32,8 +33,15 @@ const Index = () => {
 
       <WatchlistPanel />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <MoversScanner className="lg:col-span-2" />
+      <MoversScanner />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <TrendingPanel />
+        <SectorRotation />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <OptionsFlow />
         <Panel
           title="MARKET NEWS"
           id="news"
@@ -41,11 +49,6 @@ const Index = () => {
         >
           <NewsFeed items={marketNews.data?.news ?? []} compact />
         </Panel>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <TrendingPanel />
-        <OptionsFlow />
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { Radar, ScanSearch } from 'lucide-react';
 import type { UseQueryResult } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -152,8 +153,19 @@ export function OptionsFlow() {
                 </TableCell>
                 <TableCell className="text-right font-mono text-xs tabular-nums">{formatInteger(r.volume)}</TableCell>
                 <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{formatInteger(r.oi)}</TableCell>
-                <TableCell className="hidden text-right font-mono text-xs tabular-nums text-muted-foreground sm:table-cell">
-                  {r.iv > 0 ? `${(r.iv * 100).toFixed(0)}%` : '—'}
+                <TableCell className="hidden text-right sm:table-cell">
+                  {r.iv > 0 ? (
+                    <span className="flex items-center justify-end gap-1">
+                      <span className="font-mono text-xs tabular-nums text-muted-foreground">{(r.iv * 100).toFixed(0)}%</span>
+                      {r.iv >= 0.6 ? (
+                        <Badge variant="outline" className="font-mono text-[9px] font-bold text-loss">RICH</Badge>
+                      ) : r.iv <= 0.25 ? (
+                        <Badge variant="outline" className="font-mono text-[9px] font-bold text-gain">CHEAP</Badge>
+                      ) : null}
+                    </span>
+                  ) : (
+                    '—'
+                  )}
                 </TableCell>
                 <TableCell className="hidden text-right lg:table-cell">
                   <span className={`font-mono text-xs tabular-nums ${colorForChange(r.changePct)}`}>
@@ -167,7 +179,9 @@ export function OptionsFlow() {
       )}
 
       <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-        {user ? `${symbols.length} chains · vol/OI ≥ ${MIN_RATIO}×, vol ≥ ${MIN_VOLUME} · CBOE delayed` : 'Scan requires login'}
+        {user
+          ? `${symbols.length} chains · vol/OI ≥ ${MIN_RATIO}×, vol ≥ ${MIN_VOLUME} · RICH IV ≥ 60%, CHEAP ≤ 25% · CBOE delayed`
+          : 'Scan requires login'}
       </div>
     </Panel>
   );
