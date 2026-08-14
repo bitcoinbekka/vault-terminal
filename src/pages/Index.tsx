@@ -33,12 +33,12 @@ const Index = () => {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <MoversScanner className="lg:col-span-2" />
+        <PortfolioPanel className="lg:col-span-2" />
         <OptionsFlow />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <PortfolioPanel className="lg:col-span-2" />
+        <MoversScanner className="lg:col-span-2" />
         <Panel
           title="MARKET NEWS"
           id="news"

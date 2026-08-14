@@ -1,0 +1,32 @@
+# Vault Terminal — 24/7 alert watcher systemd unit
+#
+# Install:
+#   1. Deploy the project to /var/www/vault (npm ci already run).
+#   2. cp server/.env.example /etc/vault-alerts.env && edit VAULT_NSEC
+#   3. sudo cp server/vault-alerts.service /etc/systemd/system/
+#   4. sudo systemctl daemon-reload
+#   5. sudo systemctl enable --now vault-alerts
+#
+# Useful commands:
+#   journalctl -u vault-alerts -f          # watch the log
+#   systemctl restart vault-alerts
+
+[Unit]
+Description=Vault Terminal alert watcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/vault
+EnvironmentFile=/etc/vault-alerts.env
+ExecStart=/usr/bin/node /var/www/vault/server/alerts-watcher.mjs
+Restart=always
+RestartSec=15
+# Hardening (optional but recommended)
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

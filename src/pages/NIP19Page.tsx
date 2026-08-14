@@ -1,6 +1,9 @@
 import { nip19 } from 'nostr-tools';
 import { useParams } from 'react-router-dom';
+
 import NotFound from './NotFound';
+import { ProfileView } from '@/components/nostr/ProfileView';
+import { EventView } from '@/components/nostr/EventView';
 
 export function NIP19Page() {
   const { nip19: identifier } = useParams<{ nip19: string }>();
@@ -20,23 +23,44 @@ export function NIP19Page() {
 
   switch (type) {
     case 'npub':
-    case 'nprofile':
-      // AI agent should implement profile view here
-      return <div>Profile placeholder</div>;
+      return (
+        <div className="mx-auto w-full max-w-4xl">
+          <ProfileView pubkey={decoded.data as string} />
+        </div>
+      );
+
+    case 'nprofile': {
+      const { pubkey } = decoded.data as { pubkey: string };
+      return (
+        <div className="mx-auto w-full max-w-4xl">
+          <ProfileView pubkey={pubkey} />
+        </div>
+      );
+    }
 
     case 'note':
-      // AI agent should implement note view here
-      return <div>Note placeholder</div>;
+      return <EventView id={decoded.data as string} />;
 
-    case 'nevent':
-      // AI agent should implement event view here
-      return <div>Event placeholder</div>;
+    case 'nevent': {
+      const { id, author, kind } = decoded.data as {
+        id: string;
+        author?: string;
+        kind?: number;
+      };
+      return <EventView id={id} author={author} kind={kind} />;
+    }
 
-    case 'naddr':
-      // AI agent should implement addressable event view here
-      return <div>Addressable event placeholder</div>;
+    case 'naddr': {
+      const { kind, pubkey, identifier: d } = decoded.data as {
+        kind: number;
+        pubkey: string;
+        identifier: string;
+      };
+      return <EventView kind={kind} author={pubkey} identifier={d} />;
+    }
 
     default:
+      // nsec, nrelay and unknown identifiers are never rendered
       return <NotFound />;
   }
-} 
+}

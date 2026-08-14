@@ -17,9 +17,9 @@ export function AppRouter() {
           <Route path="/" element={<Index />} />
           <Route path="/stock/:symbol" element={<StockPage />} />
           <Route path="/journal" element={<JournalPage />} />
+          {/* NIP-19 route for npub1, note1, naddr1, nevent1, nprofile1 */}
+          <Route path="/:nip19" element={<NIP19Page />} />
         </Route>
-        {/* NIP-19 route for npub1, note1, naddr1, nevent1, nprofile1 */}
-        <Route path="/:nip19" element={<NIP19Page />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
