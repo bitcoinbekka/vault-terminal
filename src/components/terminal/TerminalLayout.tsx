@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { TickerTape } from './TickerTape';
 import { AlertBell } from './AlertBell';
 import { AlertWatcher } from './AlertWatcher';
+import { CommandBar } from './CommandBar';
 
 /** New York market clock + session badge. */
 function MarketClock() {
@@ -77,12 +78,20 @@ export function TerminalLayout() {
               TERMINAL
             </Link>
             <Link
+              to="/screener"
+              className="rounded px-2 py-1 text-xs font-semibold tracking-wider text-muted-foreground hover:text-foreground"
+            >
+              EQS
+            </Link>
+            <Link
               to="/journal"
               className="rounded px-2 py-1 text-xs font-semibold tracking-wider text-muted-foreground hover:text-foreground"
             >
               JOURNAL
             </Link>
           </nav>
+
+          <CommandBar />
 
           <div className="ml-auto flex items-center gap-3">
             <MarketClock />

@@ -16,6 +16,11 @@ A dark "terminal" for retail traders:
 - **Dashboard (`/`)** — portfolio (top, under the ticker), market indices,
   macro regime (VIX/yields/gold/BTC), watchlist, market movers, sector
   rotation, options flow, trending, market news.
+- **Command line (`/` shortcut or `>_` button)** — Bloomberg-style `<GO>` bar:
+  tickers (`AAPL <GO>`) and mnemonics (`TOP`, `EQS`, `DES NVDA`,
+  `OPTIONS NVDA`, `HELP`). See `src/lib/commands.ts` + `CommandBar.tsx`.
+- **Equity screener (`/screener`, `EQS <GO>`)** — filter the liquid universe
+  by % change, volume, price and 52-week proximity.
 - **Stock page (`/stock/:symbol`)** — live quote header, candlestick chart with
   indicator overlays (SMA/EMA/BOLL/VWAP/RSI/MACD), options chain with expected
   move + greeks, corporate news.

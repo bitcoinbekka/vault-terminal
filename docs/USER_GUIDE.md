@@ -65,6 +65,20 @@ on **Nostr**, so it follows your identity (npub) instead of an app account.
 - Stock page chart → toggle **SMA, EMA, Bollinger, VWAP, RSI, MACD** overlays.
 - Hover for OHLCV + indicator values; use 1D→MAX ranges.
 
+**The command line — Bloomberg-style `<GO>`**
+- Hit the **`>_` button** in the header (or press **`/`**) to open the command bar.
+- Type a ticker or mnemonic and press **Enter (green `<GO>`)**:
+  - `AAPL <GO>` — open a stock page (aliases: `SPX`, `NDX`, `VIX`, `GOLD`, `BTC`…)
+  - `TOP <GO>` — market news · `MOVERS <GO>` · `SECTOR <GO>` · `REGIME <GO>` · `PORTFOLIO <GO>` · `WATCHLIST <GO>`
+  - `EQS <GO>` — open the equity screener
+  - `DES NVDA <GO>` / `OPTIONS NVDA <GO>` — jump straight to a stock's overview/options tab
+  - `JOURNAL <GO>` · `TERMINAL <GO>` · `HELP <GO>` (command legend)
+
+**Equity screening — `EQS <GO>`**
+- The **EQS** page screens the terminal's liquid universe (mega-caps + sector ETFs + your watchlist).
+- Filter by min/max % change, minimum volume, minimum price, and proximity to the 52-week high.
+- Sort by % change, volume, or 52-week proximity. (Fundamentals like P/E need a paid feed — noted on the page.)
+
 ---
 
 ## The decentralized part

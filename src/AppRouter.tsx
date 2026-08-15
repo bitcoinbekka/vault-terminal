@@ -5,6 +5,7 @@ import { TerminalLayout } from "@/components/terminal/TerminalLayout";
 import Index from "./pages/Index";
 import StockPage from "./pages/StockPage";
 import JournalPage from "./pages/JournalPage";
+import ScreenerPage from "./pages/ScreenerPage";
 import { NIP19Page } from "./pages/NIP19Page";
 import NotFound from "./pages/NotFound";
 
@@ -17,6 +18,7 @@ export function AppRouter() {
           <Route path="/" element={<Index />} />
           <Route path="/stock/:symbol" element={<StockPage />} />
           <Route path="/journal" element={<JournalPage />} />
+          <Route path="/screener" element={<ScreenerPage />} />
           {/* NIP-19 route for npub1, note1, naddr1, nevent1, nprofile1 */}
           <Route path="/:nip19" element={<NIP19Page />} />
         </Route>

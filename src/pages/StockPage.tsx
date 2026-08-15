@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useSeoMeta } from '@unhead/react';
 import { ArrowLeft, BellPlus, BriefcaseBusiness, BookOpenText, Eye, EyeOff } from 'lucide-react';
 
@@ -39,12 +39,14 @@ const StockPage = () => {
   const symbol = normalizeSymbol(raw ?? '');
   const valid = isValidSymbol(symbol);
 
+  const [searchParams] = useSearchParams();
   const [rangeKey, setRangeKey] = useState(DEFAULT_RANGE);
   const [addPosOpen, setAddPosOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [overlays, setOverlays] = useState<ChartOverlays>({});
-  const [tab, setTab] = useState('overview');
+  // ?tab=options (set by the command bar) opens straight into that tab.
+  const [tab, setTab] = useState(searchParams.get('tab') ?? 'overview');
 
   const chart = useYahooChart(symbol, rangeKey, valid);
   const info = useYahooSearch(symbol, valid);
