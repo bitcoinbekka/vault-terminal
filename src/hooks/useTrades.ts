@@ -5,12 +5,14 @@ import type { NostrEvent } from '@nostrify/nostrify';
 
 import { useCurrentUser } from './useCurrentUser';
 import { useNostrPublish } from './useNostrPublish';
+import { decryptOwnData, encryptOwnData, isEncryptedEvent, type Nip44Signer } from '@/lib/nostrCrypto';
 import { computeJournal, type JournalStats, type Trade } from '@/lib/journal';
 
 /**
  * The user's trade journal, stored as a NIP-78 app-data event (kind 30078,
- * d-tag `vault:trades`). Realized P/L is computed client-side with FIFO
- * accounting (see lib/journal.ts). See NIP.md.
+ * d-tag `vault:trades`). Content is NIP-44 encrypted to the owner. Realized
+ * P/L is computed client-side with FIFO accounting (see lib/journal.ts). See
+ * NIP.md.
  */
 
 export const TRADES_D = 'vault:trades';
@@ -40,6 +42,23 @@ export function parseTrades(event: NostrEvent): Trade[] {
   return [];
 }
 
+async function readTrades(event: NostrEvent, pubkey: string, signer?: Nip44Signer): Promise<Trade[]> {
+  if (isEncryptedEvent(event) && signer) {
+    const decrypted = await decryptOwnData<TradesContent>(signer, pubkey, event.content);
+    if (decrypted && Array.isArray(decrypted.trades)) {
+      return decrypted.trades.filter(
+        (t) =>
+          t &&
+          typeof t.symbol === 'string' &&
+          (t.side === 'buy' || t.side === 'sell') &&
+          typeof t.quantity === 'number' &&
+          typeof t.price === 'number',
+      );
+    }
+  }
+  return parseTrades(event);
+}
+
 export function useTrades() {
   const { user } = useCurrentUser();
   const { nostr } = useNostr();
@@ -59,7 +78,7 @@ export function useTrades() {
         { signal },
       );
       const event = events[0];
-      return event ? parseTrades(event) : [];
+      return event ? readTrades(event, pubkey, user?.signer) : [];
     },
   });
 
@@ -69,8 +88,11 @@ export function useTrades() {
       const previous = queryClient.getQueryData<Trade[]>(queryKey);
       queryClient.setQueryData(queryKey, trades); // optimistic
       try {
-        const content = JSON.stringify({ version: 1, trades });
-        const tags: string[][] = [['d', TRADES_D]];
+        const content = await encryptOwnData(user.signer, user.pubkey, { version: 1, trades });
+        const tags: string[][] = [
+          ['d', TRADES_D],
+          ['enc', 'nip44'],
+        ];
         await publish({ kind: TRADES_KIND, content, tags });
       } catch (error) {
         queryClient.setQueryData(queryKey, previous);

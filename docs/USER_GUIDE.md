@@ -84,7 +84,8 @@ on **Nostr**, so it follows your identity (npub) instead of an app account.
 ## The decentralized part
 
 - Your **watchlist, positions, alerts and journal** are stored as Nostr events
-  (kind 30078). Log in with the same npub on any device and everything is
+  (kind 30078) **encrypted to your own key** (NIP-44) — relays store ciphertext
+  only you can read. Log in with the same npub on any device and everything is
   there — no account database, no company holding your data.
 - Market data itself is *viewed*, not owned — quotes are **delayed** (free
   feeds: Yahoo Finance + CBOE).
@@ -99,8 +100,8 @@ on **Nostr**, so it follows your identity (npub) instead of an app account.
   24/7, run the server watcher on your own VPS.
 - **Feed outages** — if market data is unreachable you'll see a "feed
   unavailable" banner with a Retry button; your Nostr data keeps working.
-- **Privacy note** — Nostr events are public. Positions, trades and alerts are
-  visible to anyone with your npub. Don't store anything sensitive.
+- **Privacy** — your data is encrypted to your own key on Nostr (NIP-44), so
+  only you can read it. Logging in requires your signer to decrypt.
 - Nothing here is financial advice. 😉
 
 ---

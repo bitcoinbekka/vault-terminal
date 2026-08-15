@@ -5,10 +5,12 @@ import type { NostrEvent } from '@nostrify/nostrify';
 
 import { useCurrentUser } from './useCurrentUser';
 import { useNostrPublish } from './useNostrPublish';
+import { decryptOwnData, encryptOwnData, isEncryptedEvent, type Nip44Signer } from '@/lib/nostrCrypto';
 
 /**
  * The user's positions (shares + option contracts), stored as a NIP-78
- * app-data event (kind 30078, d-tag `vault:positions`). See NIP.md.
+ * app-data event (kind 30078, d-tag `vault:positions`). Content is NIP-44
+ * encrypted to the owner (see NIP.md).
  */
 
 export const POSITIONS_D = 'vault:positions';
@@ -43,6 +45,16 @@ export function parsePositions(event: NostrEvent): Position[] {
   return [];
 }
 
+async function readPositions(event: NostrEvent, pubkey: string, signer?: Nip44Signer): Promise<Position[]> {
+  if (isEncryptedEvent(event) && signer) {
+    const decrypted = await decryptOwnData<PositionsContent>(signer, pubkey, event.content);
+    if (decrypted && Array.isArray(decrypted.positions)) {
+      return decrypted.positions.filter((p) => p && typeof p.symbol === 'string');
+    }
+  }
+  return parsePositions(event);
+}
+
 export function usePositions() {
   const { user } = useCurrentUser();
   const { nostr } = useNostr();
@@ -62,7 +74,7 @@ export function usePositions() {
         { signal },
       );
       const event = events[0];
-      return event ? parsePositions(event) : [];
+      return event ? readPositions(event, pubkey, user?.signer) : [];
     },
   });
 
@@ -72,8 +84,11 @@ export function usePositions() {
       const previous = queryClient.getQueryData<Position[]>(queryKey);
       queryClient.setQueryData(queryKey, positions); // optimistic
       try {
-        const content = JSON.stringify({ version: 1, positions });
-        const tags: string[][] = [['d', POSITIONS_D]];
+        const content = await encryptOwnData(user.signer, user.pubkey, { version: 1, positions });
+        const tags: string[][] = [
+          ['d', POSITIONS_D],
+          ['enc', 'nip44'],
+        ];
         await publish({ kind: POSITIONS_KIND, content, tags });
       } catch (error) {
         queryClient.setQueryData(queryKey, previous);

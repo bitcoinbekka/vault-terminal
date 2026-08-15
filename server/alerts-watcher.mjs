@@ -41,7 +41,7 @@
 
 import { finalizeEvent, getPublicKey, nip19 } from 'nostr-tools';
 import { SimplePool } from 'nostr-tools/pool';
-import { getConversationKey, encrypt } from 'nostr-tools/nip44';
+import { getConversationKey, encrypt as nip44Encrypt, decrypt as nip44Decrypt } from 'nostr-tools/nip44';
 import { wrapEvent } from 'nostr-tools/nip59';
 
 const ALERTS_D = 'vault:alerts';
@@ -141,7 +141,7 @@ async function sendDm(pool, relays, senderSk, recipientPk, title, body) {
   const message = `⚡ VAULT ALERT — ${title}\n\n${body}`;
   const inner = {
     kind: 14,
-    content: encrypt(message, conversationKey),
+    content: nip44Encrypt(message, conversationKey),
     tags: [['p', recipientPk]],
     created_at: Math.floor(Date.now() / 1000),
   };
@@ -193,7 +193,24 @@ async function runCheck({ dryRun, noDm, recentlyNotified }) {
       return { ok: true };
     }
 
-    const alerts = parseAlerts(event.content);
+    // Content is NIP-44 encrypted to the owner (enc tag) — the watcher holds
+    // the nsec so it can decrypt, and re-encrypts when publishing fired state.
+    const encrypted = event.tags.some(([name]) => name === 'enc');
+    const conversationKey = getConversationKey(senderSk, ownerPk);
+
+    let alerts;
+    if (encrypted) {
+      try {
+        const plain = nip44Decrypt(event.content, conversationKey);
+        alerts = parseAlerts(plain);
+      } catch (error) {
+        log(`Could not decrypt alerts: ${error.message}`);
+        return { ok: true };
+      }
+    } else {
+      alerts = parseAlerts(event.content);
+    }
+
     const active = alerts.filter((a) => !a.firedAt);
     log(`Loaded ${alerts.length} alerts (${active.length} armed) for ${nip19.npubEncode(ownerPk).slice(0, 12)}…`);
 
@@ -254,11 +271,12 @@ async function runCheck({ dryRun, noDm, recentlyNotified }) {
       // Mark fired alerts on Nostr so the app's bell shows them as FIRED.
       const firedIds = new Set(fired.map((f) => f.id));
       const next = alerts.map((a) => (firedIds.has(a.id) ? { ...a, firedAt: now } : a));
+      const payload = JSON.stringify({ version: 1, alerts: next });
       const signed = finalizeEvent(
         {
           kind: ALERTS_KIND,
-          content: JSON.stringify({ version: 1, alerts: next }),
-          tags: [['d', ALERTS_D]],
+          content: encrypted ? nip44Encrypt(payload, conversationKey) : payload,
+          tags: [['d', ALERTS_D], ...(encrypted ? [['enc', 'nip44']] : [])],
           created_at: now,
         },
         senderSk,

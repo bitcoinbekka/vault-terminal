@@ -155,14 +155,19 @@ positions, alerts, journal) keep working regardless. Self-hosting with
 ## 7. Nostr data model
 
 See **`NIP.md`** — it is the authoritative schema reference. Summary
-(kind 30078, all author-constrained):
+(kind 30078, all author-constrained, all **NIP-44 encrypted to the owner**):
 
 | Dataset | `d` tag | Notes |
 | --- | --- | --- |
-| Watchlist | `vault:watchlist` | symbols also mirrored to `t` tags |
-| Positions | `vault:positions` | equity + OCC option contracts |
-| Alerts | `vault:alerts` | above/below/pctUp/pctDown; `firedAt` |
-| Trades | `vault:trades` | buy/sell, FIFO accounting |
+| Watchlist | `vault:watchlist` | content encrypted; `enc` tag |
+| Positions | `vault:positions` | equity + OCC option contracts, encrypted |
+| Alerts | `vault:alerts` | above/below/pctUp/pctDown; `firedAt`; encrypted |
+| Trades | `vault:trades` | buy/sell, FIFO accounting; encrypted |
+
+Encryption uses the user's signer (`user.signer.nip44.encrypt/decrypt`,
+NIP-44 = the cipher behind NIP-17 DMs); see `src/lib/nostrCrypto.ts`. The
+server watcher decrypts/re-encrypts alerts with the owner's nsec. Legacy
+plaintext events still parse via a fallback.
 
 Login/relays are handled by the template (`NostrSync` loads the user's NIP-65
 list into `AppContext`). Default relays: `src/lib/appRelays.ts`.
@@ -235,8 +240,9 @@ addressable lookups by `authors` (see the `nip19-routing` skill).
   watcher.
 - **Options chains are heavy** (~1.5 MB each) — lazy-loading is intentional;
   don't fetch them eagerly on the dashboard.
-- **Data is public on Nostr** — nothing sensitive is stored (positions/trades
-  are visible to anyone with the pubkey).
+- **Data is public on Nostr** — `content` is NIP-44 encrypted to the owner, so
+  holdings are private-by-default; legacy plaintext events remain readable.
+  Signers must support `nip44.encrypt/decrypt`.
 - The project directory is `/projects/vault` (do not confuse with any
   `untitled` stub dirs that may exist in the workspace).
 - Platform sandbox has **no Node runtime** — `tsc`/`eslint`/`vitest` can't run

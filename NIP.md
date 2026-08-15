@@ -5,20 +5,31 @@ This document describes the custom data schemas defined by Vault Terminal (this 
 All app data uses the existing **NIP-78 (Application-specific Data)** event kind `30078`,
 keyed by a `d` tag prefixed with `vault:`. No new event kinds are introduced.
 
+## Encryption (NIP-44)
+
+All four user datasets (watchlist, positions, alerts, trades) are **encrypted to the
+owner's own pubkey** with **NIP-44** — the same cipher used by NIP-17 gift-wrapped DMs.
+
+- The event's `content` is the NIP-44 ciphertext of the JSON shown below.
+- An `enc` tag (`["enc", "nip44"]`) marks the event as encrypted.
+- Only the owner's signer (`nsec` / NIP-07 extension / NIP-46 remote signer) — or the
+  server-side alert watcher, which holds the owner's nsec — can decrypt.
+- Legacy events written before encryption (no `enc` tag) remain readable via the plaintext
+  schema; clients attempt decryption first, then fall back to plaintext.
+
 ## Watchlist (`d` = `vault:watchlist`)
 
-Stores the tickers the user follows. Symbols are mirrored into single-letter `t` tags so
-they remain queryable at the relay level.
+Stores the tickers the user follows.
 
 **Tags**
 
 | Tag | Values | Purpose |
 | --- | --- | --- |
 | `d` | `vault:watchlist` | Addressable identifier |
-| `t` | uppercase symbol, e.g. `AAPL` | Queryable symbol list (one per ticker) |
+| `enc` | `nip44` | Content is NIP-44 ciphertext (owner-only) |
 | `client` | hostname | Added automatically by the publish hook (NIP-89) |
 
-**Content** (JSON):
+**Content** (plaintext JSON, then encrypted):
 
 ```json
 {
@@ -36,9 +47,10 @@ Stores the user's portfolio: equity shares and option contracts.
 | Tag | Values | Purpose |
 | --- | --- | --- |
 | `d` | `vault:positions` | Addressable identifier |
+| `enc` | `nip44` | Content is NIP-44 ciphertext (owner-only) |
 | `client` | hostname | Added automatically by the publish hook |
 
-**Content** (JSON):
+**Content** (plaintext JSON, then encrypted):
 
 ```json
 {
@@ -77,16 +89,18 @@ Stores the user's portfolio: equity shares and option contracts.
 
 Stores the user's price alerts. Checked client-side every 60s while the terminal
 is open; fires browser notifications + sound when a condition is met, then marks
-the alert as fired (re-armable).
+the alert as fired (re-armable). The server-side watcher decrypts and re-encrypts
+these events with the owner's nsec.
 
 **Tags**
 
 | Tag | Values | Purpose |
 | --- | --- | --- |
 | `d` | `vault:alerts` | Addressable identifier |
+| `enc` | `nip44` | Content is NIP-44 ciphertext (owner-only) |
 | `client` | hostname | Added automatically by the publish hook |
 
-**Content** (JSON):
+**Content** (plaintext JSON, then encrypted):
 
 ```json
 {
@@ -123,9 +137,10 @@ hold time are computed client-side with FIFO cost-basis accounting
 | Tag | Values | Purpose |
 | --- | --- | --- |
 | `d` | `vault:trades` | Addressable identifier |
+| `enc` | `nip44` | Content is NIP-44 ciphertext (owner-only) |
 | `client` | hostname | Added automatically by the publish hook |
 
-**Content** (JSON):
+**Content** (plaintext JSON, then encrypted):
 
 ```json
 {

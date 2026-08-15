@@ -5,11 +5,13 @@ import type { NostrEvent } from '@nostrify/nostrify';
 
 import { useCurrentUser } from './useCurrentUser';
 import { useNostrPublish } from './useNostrPublish';
+import { decryptOwnData, encryptOwnData, isEncryptedEvent, type Nip44Signer } from '@/lib/nostrCrypto';
 
 /**
  * The user's price alerts, stored as a NIP-78 app-data event (kind 30078,
- * d-tag `vault:alerts`). Alerts are checked client-side while the terminal is
- * open; they follow the user's npub. See NIP.md.
+ * d-tag `vault:alerts`). Content is NIP-44 encrypted to the owner. Alerts are
+ * checked client-side while the terminal is open and by the server-side
+ * watcher (which decrypts with the owner's nsec). See NIP.md.
  */
 
 export const ALERTS_D = 'vault:alerts';
@@ -61,6 +63,18 @@ export function describeAlert(a: PriceAlert): string {
   }
 }
 
+async function readAlerts(event: NostrEvent, pubkey: string, signer?: Nip44Signer): Promise<PriceAlert[]> {
+  if (isEncryptedEvent(event) && signer) {
+    const decrypted = await decryptOwnData<AlertsContent>(signer, pubkey, event.content);
+    if (decrypted && Array.isArray(decrypted.alerts)) {
+      return decrypted.alerts.filter(
+        (a) => a && typeof a.symbol === 'string' && typeof a.value === 'number',
+      );
+    }
+  }
+  return parseAlerts(event);
+}
+
 export function useAlerts() {
   const { user } = useCurrentUser();
   const { nostr } = useNostr();
@@ -80,7 +94,7 @@ export function useAlerts() {
         { signal },
       );
       const event = events[0];
-      return event ? parseAlerts(event) : [];
+      return event ? readAlerts(event, pubkey, user?.signer) : [];
     },
   });
 
@@ -90,8 +104,11 @@ export function useAlerts() {
       const previous = queryClient.getQueryData<PriceAlert[]>(queryKey);
       queryClient.setQueryData(queryKey, alerts); // optimistic
       try {
-        const content = JSON.stringify({ version: 1, alerts });
-        const tags: string[][] = [['d', ALERTS_D]];
+        const content = await encryptOwnData(user.signer, user.pubkey, { version: 1, alerts });
+        const tags: string[][] = [
+          ['d', ALERTS_D],
+          ['enc', 'nip44'],
+        ];
         await publish({ kind: ALERTS_KIND, content, tags });
       } catch (error) {
         queryClient.setQueryData(queryKey, previous);

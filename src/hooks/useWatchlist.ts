@@ -5,11 +5,12 @@ import type { NostrEvent } from '@nostrify/nostrify';
 
 import { useCurrentUser } from './useCurrentUser';
 import { useNostrPublish } from './useNostrPublish';
+import { decryptOwnData, encryptOwnData, isEncryptedEvent, type Nip44Signer } from '@/lib/nostrCrypto';
 
 /**
  * The user's watchlist, stored as a NIP-78 app-data event (kind 30078,
- * d-tag `vault:watchlist`). Symbols are mirrored into `t` tags so they are
- * queryable at the relay level. See NIP.md.
+ * d-tag `vault:watchlist`). Content is NIP-44 encrypted to the owner's own
+ * pubkey (`enc` tag) so the symbols stay private on relays. See NIP.md.
  */
 
 export const WATCHLIST_D = 'vault:watchlist';
@@ -20,6 +21,7 @@ interface WatchlistContent {
   symbols?: string[];
 }
 
+/** Parse a plaintext (legacy) watchlist event. */
 export function parseWatchlist(event: NostrEvent): string[] {
   try {
     const parsed = JSON.parse(event.content) as WatchlistContent;
@@ -27,13 +29,23 @@ export function parseWatchlist(event: NostrEvent): string[] {
       return parsed.symbols.map((s) => s.toUpperCase());
     }
   } catch {
-    // Fall through to tag parsing
+    // ignore malformed events
   }
   return event.tags
     .filter(([name]) => name === 't')
     .map(([, value]) => value)
     .filter(Boolean)
     .map((s) => s.toUpperCase());
+}
+
+async function readWatchlist(event: NostrEvent, pubkey: string, signer?: Nip44Signer): Promise<string[]> {
+  if (isEncryptedEvent(event) && signer) {
+    const decrypted = await decryptOwnData<WatchlistContent>(signer, pubkey, event.content);
+    if (decrypted && Array.isArray(decrypted.symbols)) {
+      return decrypted.symbols.map((s) => s.toUpperCase());
+    }
+  }
+  return parseWatchlist(event);
 }
 
 export function useWatchlist() {
@@ -55,7 +67,7 @@ export function useWatchlist() {
         { signal },
       );
       const event = events[0];
-      return event ? parseWatchlist(event) : [];
+      return event ? readWatchlist(event, pubkey, user?.signer) : [];
     },
   });
 
@@ -66,10 +78,10 @@ export function useWatchlist() {
       const previous = queryClient.getQueryData<string[]>(queryKey);
       queryClient.setQueryData(queryKey, normalized); // optimistic
       try {
-        const content = JSON.stringify({ version: 1, symbols: normalized });
+        const content = await encryptOwnData(user.signer, user.pubkey, { version: 1, symbols: normalized });
         const tags: string[][] = [
           ['d', WATCHLIST_D],
-          ...normalized.map((s) => ['t', s] as [string, string]),
+          ['enc', 'nip44'],
         ];
         await publish({ kind: WATCHLIST_KIND, content, tags });
       } catch (error) {
