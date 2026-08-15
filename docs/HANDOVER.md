@@ -26,6 +26,12 @@ A dark "terminal" for retail traders:
   move + greeks, corporate news.
 - **Trade journal (`/journal`)** — log buys/sells; FIFO realized P/L, win
   rate, avg hold time, open lots.
+- **Position sizer (`/sizer`, `SIZER <GO>`)** — risk-based sizing (account %,
+  entry, stop → shares/$ risked/position value); prefilled from stock pages.
+- **Hourly snapshots** — `server/market-snapshot.mjs` publishes per-symbol
+  hourly snapshots to Nostr (kind 30078 `vault:snapshot:<SYMBOL>:<hour>`,
+  encrypted, `t`-tagged); the stock page shows them in
+  `SnapshotsPanel` via `useSnapshots`.
 - **Profile pages (`/:nip19`)** — real Nostr profile/note/event views.
 - **Alerts** — price alerts with browser notifications (client-side, while the
   tab is open) **and** a server-side 24/7 watcher (VPS companion, sends

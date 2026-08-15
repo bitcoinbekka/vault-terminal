@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useSeoMeta } from '@unhead/react';
-import { ArrowLeft, BellPlus, BriefcaseBusiness, BookOpenText, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, BellPlus, BriefcaseBusiness, BookOpenText, Calculator, Eye, EyeOff } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { PriceChange } from '@/components/terminal/PriceChange';
 import { AddPositionDialog } from '@/components/terminal/AddPositionDialog';
 import { AddAlertDialog } from '@/components/terminal/AddAlertDialog';
 import { AddTradeDialog } from '@/components/terminal/AddTradeDialog';
+import { SnapshotsPanel } from '@/components/terminal/SnapshotsPanel';
 
 import { CHART_RANGES, DEFAULT_RANGE, isValidSymbol, normalizeSymbol } from '@/lib/yahoo';
 import { formatCompact, formatPrice, formatTime } from '@/lib/format';
@@ -157,6 +158,11 @@ const StockPage = () => {
           <Button onClick={() => setTradeOpen(true)} size="sm" variant="outline" className="font-mono text-xs">
             <BookOpenText className="size-3.5" /> LOG TRADE
           </Button>
+          <Button asChild size="sm" variant="outline" className="font-mono text-xs">
+            <Link to={`/sizer?symbol=${symbol}&entry=${typeof price === 'number' ? price : ''}`}>
+              <Calculator className="size-3.5" /> SIZER
+            </Link>
+          </Button>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
@@ -222,6 +228,9 @@ const StockPage = () => {
           <CandleChart candles={candles} height={340} overlays={overlays} />
         )}
       </section>
+
+      {/* Nostr snapshot history (written by server/market-snapshot.mjs) */}
+      <SnapshotsPanel symbol={symbol} />
 
       {/* Detail tabs */}
       <section className="rounded-lg border border-border bg-card p-3">

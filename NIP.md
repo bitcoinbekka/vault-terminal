@@ -168,6 +168,39 @@ hold time are computed client-side with FIFO cost-basis accounting
 - `date` — unix seconds of execution.
 - `fees` — optional, subtracted from realized P/L.
 
+## Market Snapshots (`d` = `vault:snapshot:<SYMBOL>:<unix-hour>`)
+
+Written by the server-side snapshot pusher (`server/market-snapshot.mjs`) on the
+owner's VPS — usually hourly — to build a private, decentralized price history.
+One addressable event per symbol per hour, so relays retain the full series.
+
+**Tags**
+
+| Tag | Values | Purpose |
+| --- | --- | --- |
+| `d` | `vault:snapshot:AAPL:1786734000` | Hour-bucketed addressable id |
+| `t` | uppercase symbol | Relay-queryable per symbol |
+| `enc` | `nip44` | Content is NIP-44 ciphertext (owner-only) |
+| `client` | hostname | Added by the publish path where present |
+
+**Content** (plaintext JSON, then encrypted):
+
+```json
+{
+  "version": 1,
+  "symbol": "AAPL",
+  "name": "Apple Inc.",
+  "price": 305.85,
+  "prevClose": 305.26,
+  "changePct": 0.19,
+  "volume": 15762797,
+  "ts": 1786734000
+}
+```
+
+Read via `{ kinds: [30078], authors: [owner], '#t': [symbol], limit: 24 }` and
+filtered by the `d` prefix. Snapshots are market data (not financial advice).
+
 ## Queries
 
 All events are read with the same author-constrained pattern (shown here for

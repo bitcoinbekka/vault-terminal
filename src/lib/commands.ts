@@ -87,6 +87,14 @@ export const COMMANDS: VaultCommand[] = [
     aliases: ['WL'],
   },
   {
+    code: 'SIZER',
+    name: 'Position Sizing',
+    description: 'Risk-based position size calculator (account %, entry, stop)',
+    kind: 'route',
+    target: '/sizer',
+    aliases: ['SIZE', 'SIZING'],
+  },
+  {
     code: 'JOURNAL',
     name: 'Trade Journal',
     description: 'FIFO realized P/L, win rate, average hold, open lots',

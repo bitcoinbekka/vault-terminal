@@ -79,6 +79,16 @@ on **Nostr**, so it follows your identity (npub) instead of an app account.
 - Filter by min/max % change, minimum volume, minimum price, and proximity to the 52-week high.
 - Sort by % change, volume, or 52-week proximity. (Fundamentals like P/E need a paid feed — noted on the page.)
 
+**Position sizing — `SIZER <GO>`**
+- Risk-based sizer: account size, risk % per trade, entry and stop → **shares, $ risked, position value, % of account**.
+- Hit **SIZER** on any stock page to prefill the symbol and current price.
+
+**Your own price history — Hourly Snapshots**
+- Run `node server/market-snapshot.mjs` on your VPS (cron: hourly) and every watchlist symbol's price is
+  snapshotted to Nostr, encrypted to your key.
+- Stock pages then show an **HOURLY SNAPSHOTS // NOSTR HISTORY** panel — your own decentralized record,
+  stored on the network, not on an app server.
+
 ---
 
 ## The decentralized part

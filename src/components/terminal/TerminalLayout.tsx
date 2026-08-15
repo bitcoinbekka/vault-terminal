@@ -84,6 +84,12 @@ export function TerminalLayout() {
               EQS
             </Link>
             <Link
+              to="/sizer"
+              className="rounded px-2 py-1 text-xs font-semibold tracking-wider text-muted-foreground hover:text-foreground"
+            >
+              SIZER
+            </Link>
+            <Link
               to="/journal"
               className="rounded px-2 py-1 text-xs font-semibold tracking-wider text-muted-foreground hover:text-foreground"
             >
