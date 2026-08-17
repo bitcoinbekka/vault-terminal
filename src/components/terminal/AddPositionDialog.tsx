@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
@@ -48,9 +48,11 @@ const schema = z.discriminatedUnion('kind', [equitySchema, optionSchema]);
 interface AddPositionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** When set, the dialog edits this position instead of adding a new one. */
+  editPosition?: Position | null;
 }
 
-export function AddPositionDialog({ open, onOpenChange }: AddPositionDialogProps) {
+export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPositionDialogProps) {
   const [kind, setKind] = useState<'equity' | 'option'>('equity');
   const [symbol, setSymbol] = useState('');
   const [contract, setContract] = useState('');
@@ -62,6 +64,19 @@ export function AddPositionDialog({ open, onOpenChange }: AddPositionDialogProps
 
   const { positions, save } = usePositions();
   const { toast } = useToast();
+
+  // Prefill fields when opening in edit mode.
+  useEffect(() => {
+    if (open && editPosition) {
+      setKind(editPosition.contract ? 'option' : 'equity');
+      setSymbol(editPosition.symbol ?? '');
+      setContract(editPosition.contract ?? '');
+      setQuantity(String(editPosition.quantity ?? ''));
+      setAvgCost(String(editPosition.avgCost ?? ''));
+      setNote(editPosition.note ?? '');
+      setError(null);
+    }
+  }, [open, editPosition]);
 
   const reset = () => {
     setKind('equity');
@@ -109,8 +124,14 @@ export function AddPositionDialog({ open, onOpenChange }: AddPositionDialogProps
 
     setSaving(true);
     try {
-      await save([...positions, position]);
-      toast({ title: 'Position saved', description: position.contract ?? position.symbol });
+      const next = editPosition
+        ? positions.map((p) => (p === editPosition ? position : p))
+        : [...positions, position];
+      await save(next);
+      toast({
+        title: editPosition ? 'Position updated' : 'Position saved',
+        description: position.contract ?? position.symbol,
+      });
       reset();
       onOpenChange(false);
     } catch {
@@ -130,9 +151,11 @@ export function AddPositionDialog({ open, onOpenChange }: AddPositionDialogProps
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-mono">ADD POSITION</DialogTitle>
+          <DialogTitle className="font-mono">{editPosition ? 'EDIT POSITION' : 'ADD POSITION'}</DialogTitle>
           <DialogDescription>
-            Track shares or option contracts you own. Stored on Nostr (kind 30078) — private to your npub.
+            {editPosition
+              ? 'Update this position — changes sync to Nostr (kind 30078).'
+              : 'Track shares, ounces or coins you own. Stored on Nostr (kind 30078) — private to your npub.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -245,7 +268,7 @@ export function AddPositionDialog({ open, onOpenChange }: AddPositionDialogProps
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={submit} disabled={saving} className="bg-signal text-signal-foreground hover:bg-signal/90">
-            {saving ? 'Saving…' : 'Save position'}
+            {saving ? 'Saving…' : editPosition ? 'Save changes' : 'Save position'}
           </Button>
         </DialogFooter>
       </DialogContent>

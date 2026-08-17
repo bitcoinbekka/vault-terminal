@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BriefcaseBusiness, Loader2, Plus, Trash2 } from 'lucide-react';
+import { BriefcaseBusiness, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -57,6 +57,7 @@ export function PortfolioPanel() {
   const { toast } = useToast();
   const { privacy } = usePrivacyMode();
   const [addOpen, setAddOpen] = useState(false);
+  const [editPos, setEditPos] = useState<Position | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
 
   const equities = positions.filter((p) => !p.contract);
@@ -398,16 +399,27 @@ export function PortfolioPanel() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-loss group-hover:opacity-100"
-                        aria-label={`Remove position ${r.label}`}
-                        onClick={() => remove(r.key)}
-                        disabled={removing === r.key}
-                      >
-                        {removing === r.key ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-                      </Button>
+                      <span className="flex justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-signal group-hover:opacity-100"
+                          aria-label={`Edit position ${r.label}`}
+                          onClick={() => setEditPos(r.position)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-loss group-hover:opacity-100"
+                          aria-label={`Remove position ${r.label}`}
+                          onClick={() => remove(r.key)}
+                          disabled={removing === r.key}
+                        >
+                          {removing === r.key ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                        </Button>
+                      </span>
                     </TableCell>
                   </TableRow>
                 );
@@ -460,6 +472,13 @@ export function PortfolioPanel() {
       </div>
 
       <AddPositionDialog open={addOpen} onOpenChange={setAddOpen} />
+      <AddPositionDialog
+        open={Boolean(editPos)}
+        editPosition={editPos}
+        onOpenChange={(o) => {
+          if (!o) setEditPos(null);
+        }}
+      />
     </Panel>
   );
 }
