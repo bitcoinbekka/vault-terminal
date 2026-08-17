@@ -51,6 +51,14 @@ interface Row {
 
 const ALLOC_COLORS = ['#f59e0b', '#38bdf8', '#a78bfa', '#f472b6', '#34d399', '#f87171', '#818cf8', '#fbbf24'];
 
+type SortMode = 'symbol' | 'value' | 'pnl';
+
+const SORT_MODES: { mode: SortMode; label: string }[] = [
+  { mode: 'symbol', label: 'A-Z' },
+  { mode: 'value', label: 'VAL' },
+  { mode: 'pnl', label: 'P/L' },
+];
+
 /** Portfolio with live mark-to-market, analytics and journal integration. */
 export function PortfolioPanel() {
   const { positions, save, user } = usePositions();
@@ -61,6 +69,7 @@ export function PortfolioPanel() {
   const [editPos, setEditPos] = useState<Position | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [confirmRemoveKey, setConfirmRemoveKey] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>('symbol');
 
   const equities = positions.filter((p) => !p.contract);
   const options = positions.filter((p) => p.contract);
@@ -188,6 +197,18 @@ export function PortfolioPanel() {
   const unrealizedPct = totals.cost > 0 ? (unrealized / totals.cost) * 100 : null;
   const netPnl = journal.netRealizedPnl + unrealized;
 
+  const sortedRows = useMemo(() => {
+    const arr = [...rows];
+    if (sortMode === 'value') {
+      arr.sort((a, b) => (b.usdValue ?? -Infinity) - (a.usdValue ?? -Infinity));
+    } else if (sortMode === 'pnl') {
+      arr.sort((a, b) => (b.usdPnl ?? -Infinity) - (a.usdPnl ?? -Infinity));
+    } else {
+      arr.sort((a, b) => a.label.localeCompare(b.label));
+    }
+    return arr;
+  }, [rows, sortMode]);
+
   // Allocation (USD-normalized)
   const alloc = useMemo(() => {
     const valued = rows.filter((r) => r.usdValue !== null && r.usdValue > 0);
@@ -236,9 +257,25 @@ export function PortfolioPanel() {
       id="portfolio"
       right={
         user ? (
-          <Button size="sm" variant="outline" className="h-7 gap-1 px-2 font-mono text-[11px]" onClick={() => setAddOpen(true)}>
-            <Plus className="size-3.5" /> ADD
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <div className="flex rounded-md border border-border p-0.5">
+              {SORT_MODES.map((s) => (
+                <button
+                  key={s.mode}
+                  onClick={() => setSortMode(s.mode)}
+                  className={cn(
+                    'rounded px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wider transition-colors',
+                    sortMode === s.mode ? 'bg-signal/15 text-signal' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <Button size="sm" variant="outline" className="h-7 gap-1 px-2 font-mono text-[11px]" onClick={() => setAddOpen(true)}>
+              <Plus className="size-3.5" /> ADD
+            </Button>
+          </div>
         ) : (
           <BriefcaseBusiness className="size-3.5 text-muted-foreground" />
         )
@@ -345,7 +382,7 @@ export function PortfolioPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => {
+              {sortedRows.map((r) => {
                 const pnlPct = r.cost > 0 && r.pnl !== null ? (r.pnl / r.cost) * 100 : null;
                 return (
                   <TableRow key={r.key} className="group">

@@ -31,7 +31,14 @@ import { AddSymbolDialog } from './AddSymbolDialog';
 import { Mask } from './Mask';
 import { ConfirmDialog } from './ConfirmDialog';
 
-type SortMode = 'symbol' | 'momentum';
+type SortMode = 'symbol' | 'momentum' | 'value' | 'pnl';
+
+const SORT_MODES: { mode: SortMode; label: string }[] = [
+  { mode: 'symbol', label: 'A-Z' },
+  { mode: 'momentum', label: 'MOM' },
+  { mode: 'value', label: 'VAL' },
+  { mode: 'pnl', label: 'P/L' },
+];
 
 interface Row {
   symbol: string;
@@ -42,7 +49,7 @@ interface Row {
   pct: number | null;
   volume: number | null;
   closes: number[];
-  pos?: { qty: number; isOption: boolean };
+  pos?: { qty: number; isOption: boolean; avgCost?: number };
   pending: boolean;
   score: number | null;
   label: { text: string; className: string } | null;
@@ -63,12 +70,13 @@ export function WatchlistPanel() {
   const { infos } = useMomentum(display);
 
   const positionMap = useMemo(() => {
-    const map = new Map<string, { qty: number; isOption: boolean }>();
+    const map = new Map<string, { qty: number; isOption: boolean; avgCost?: number }>();
     for (const p of positions) {
       const cur = map.get(p.symbol);
       map.set(p.symbol, {
         qty: (cur?.qty ?? 0) + (p.contract ? 0 : p.quantity),
         isOption: Boolean(cur?.isOption) || Boolean(p.contract),
+        avgCost: p.contract ? cur?.avgCost : p.avgCost,
       });
     }
     return map;
@@ -103,8 +111,17 @@ export function WatchlistPanel() {
 
   const sorted = useMemo(() => {
     const arr = [...rows];
+    const posValue = (r: Row) =>
+      r.pos && !r.pos.isOption && r.pos.avgCost != null && r.price != null ? r.price * r.pos.qty : -Infinity;
+    const posPnl = (r: Row) =>
+      r.pos && !r.pos.isOption && r.pos.avgCost != null && r.price != null ? (r.price - r.pos.avgCost) * r.pos.qty : -Infinity;
+
     if (sortMode === 'momentum') {
       arr.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    } else if (sortMode === 'value') {
+      arr.sort((a, b) => posValue(b) - posValue(a));
+    } else if (sortMode === 'pnl') {
+      arr.sort((a, b) => posPnl(b) - posPnl(a));
     } else {
       arr.sort((a, b) => a.symbol.localeCompare(b.symbol));
     }
@@ -130,16 +147,16 @@ export function WatchlistPanel() {
       right={
         <div className="flex items-center gap-1.5">
           <div className="flex rounded-md border border-border p-0.5">
-            {(['symbol', 'momentum'] as SortMode[]).map((m) => (
+            {SORT_MODES.map((s) => (
               <button
-                key={m}
-                onClick={() => setSortMode(m)}
+                key={s.mode}
+                onClick={() => setSortMode(s.mode)}
                 className={cn(
                   'rounded px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wider transition-colors',
-                  sortMode === m ? 'bg-signal/15 text-signal' : 'text-muted-foreground hover:text-foreground',
+                  sortMode === s.mode ? 'bg-signal/15 text-signal' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                {m === 'symbol' ? 'A-Z' : 'MOM'}
+                {s.label}
               </button>
             ))}
           </div>
