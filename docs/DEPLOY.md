@@ -300,3 +300,88 @@ sudo systemctl reload nginx
 ```
 
 That's it — one-liner updates forever.
+
+---
+
+## Appendix — Option B: Caddy already owns ports 80/443
+
+If another web server owns 80/443 on the host (e.g. the `torii-quest-web`
+Caddy container on this box), **don't stop it**. Front Vault with Caddy
+instead: Caddy (public 80/443) reverse-proxies `vault.plebeian.build` to
+nginx on an internal port, and auto-issues the TLS cert (no certbot).
+
+```
+Browser → https://vault.plebeian.build (443) → Caddy (torii-quest-web)
+        → reverse_proxy → host nginx 127.0.0.1:8081 → dist + /yahoo /cboe
+```
+
+**1. Install the internal-port nginx config** (from the repo):
+
+```bash
+sudo cp deploy/nginx-vault-internal.conf /etc/nginx/sites-available/vault-terminal
+```
+
+```bash
+sudo sed -i 's/vault\.example\.com/vault.plebeian.build/' /etc/nginx/sites-available/vault-terminal
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/vault-terminal /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+```
+
+```bash
+sudo nginx -t && sudo systemctl start nginx
+```
+
+**2. Find where Caddy's config lives** (the container's Caddyfile):
+
+```bash
+sudo docker inspect torii-quest-web --format '{{json .Mounts}}'
+```
+
+Look for a mount containing `Caddyfile` — the host path (to edit) and the
+container path (usually `/etc/caddy/Caddyfile`).
+
+**3. Check the network mode** (tells us the upstream IP):
+
+```bash
+sudo docker inspect torii-quest-web --format '{{.HostConfig.NetworkMode}}'
+```
+
+- `bridge` → upstream is the docker gateway: `172.17.0.1:8081`
+- `host` → upstream is `127.0.0.1:8081`
+
+**4. Add the site block to the Caddyfile**:
+
+```
+vault.plebeian.build {
+    reverse_proxy 172.17.0.1:8081
+}
+```
+
+(Use `127.0.0.1:8081` for host networking.)
+
+**5. Apply it** — if the Caddyfile is a mounted file, edit it on the host,
+then reload (no restart needed):
+
+```bash
+sudo docker exec torii-quest-web caddy reload --config /etc/caddy/Caddyfile
+```
+
+If it's baked into the image instead: copy it in and restart:
+
+```bash
+sudo docker cp /path/to/edited/Caddyfile torii-quest-web:/etc/caddy/Caddyfile
+sudo docker restart torii-quest-web
+```
+
+**6. Verify** — DNS must point `vault.plebeian.build` at this VPS (Caddy needs
+it to issue the cert):
+
+```bash
+curl -sI https://vault.plebeian.build | head -3
+```
+
+Caddy auto-issues and renews the TLS cert — **skip the certbot step entirely**
+when using this option.
