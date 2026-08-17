@@ -349,20 +349,44 @@ container path (usually `/etc/caddy/Caddyfile`).
 sudo docker inspect torii-quest-web --format '{{.HostConfig.NetworkMode}}'
 ```
 
-- `bridge` → upstream is the docker gateway: `172.17.0.1:8081`
+- `bridge` / a custom network name (e.g. `torri-quest_default`) → upstream is
+  that network's **gateway**. Get it exactly with:
+  ```bash
+  sudo docker network inspect torri-quest_default --format '{{(index .IPAM.Config 0).Gateway}}'
+  ```
+  (Replace the network name with what `docker inspect` printed. It's usually
+  `172.18.0.1`-ish, not `172.17.0.1`.)
 - `host` → upstream is `127.0.0.1:8081`
 
-**4. Add the site block to the Caddyfile**:
+> **Important:** when Caddy runs in a Docker bridge network, nginx must listen
+> on all interfaces (`listen 8081;` in `deploy/nginx-vault-internal.conf`) —
+> the container cannot reach `127.0.0.1` on the host. The internal config in
+> the repo already does this.
+
+**4. Find where Caddy's Caddyfile lives** (it may be a bind mount OR a Docker
+volume — check the Mounts output from step 2; if it's a volume like
+`..._caddy_config` → `/config`, the Caddyfile is inside the container):
+
+```bash
+sudo docker exec torii-quest-web sh -c 'cat /proc/1/cmdline | tr "\0" " "; echo; ls -la /etc/caddy 2>/dev/null; ls -la /config 2>/dev/null'
+```
+
+The `--config <path>` in the cmdline shows the exact Caddyfile path.
+
+**5. Add the site block to the Caddyfile** (edit the file, wherever it lives —
+in a mounted host file, or with `sudo docker exec torii-quest-web sh -c
+'cat > /etc/caddy/Caddyfile'` for a volume). Use the **gateway IP from step 3**
+for the proxy target:
 
 ```
 vault.plebeian.build {
-    reverse_proxy 172.17.0.1:8081
+    reverse_proxy <gateway-ip>:8081
 }
 ```
 
-(Use `127.0.0.1:8081` for host networking.)
+(For `host` networking use `127.0.0.1:8081`.)
 
-**5. Apply it** — if the Caddyfile is a mounted file, edit it on the host,
+**6. Apply it** — if the Caddyfile is a mounted file, edit it on the host,
 then reload (no restart needed):
 
 ```bash
@@ -376,7 +400,7 @@ sudo docker cp /path/to/edited/Caddyfile torii-quest-web:/etc/caddy/Caddyfile
 sudo docker restart torii-quest-web
 ```
 
-**6. Verify** — DNS must point `vault.plebeian.build` at this VPS (Caddy needs
+**7. Verify** — DNS must point `vault.plebeian.build` at this VPS (Caddy needs
 it to issue the cert):
 
 ```bash
