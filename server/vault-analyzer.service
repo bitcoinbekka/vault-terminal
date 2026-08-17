@@ -1,0 +1,29 @@
+# Vault Terminal — AI analyzer systemd unit
+#
+# Runs the analyzer in loop mode (checks for requests every ANALYZER_INTERVAL,
+# default 60s) — no cron needed. Install:
+#   sudo cp server/vault-analyzer.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now vault-analyzer
+# Watch it:
+#   sudo systemctl status vault-analyzer --no-pager
+#   journalctl -u vault-analyzer -f
+
+[Unit]
+Description=Vault Terminal AI filing analyzer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/vault
+EnvironmentFile=/etc/vault-alerts.env
+ExecStart=/usr/bin/node /var/www/vault/server/analyzer.mjs
+Restart=always
+RestartSec=15
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
