@@ -1,9 +1,13 @@
-import { useMemo } from 'react';
-import { FileText } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { FileText, Loader2, Sparkles } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import { useFundamentals } from '@/hooks/useFundamentals';
+import { useAnalysis, useRequestAnalysis } from '@/hooks/useAnalysis';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useToast } from '@/hooks/useToast';
 import { cn } from '@/lib/utils';
 
 /** Compact SVG bar chart (one series), terminal styling. */
@@ -83,6 +87,9 @@ export function FundamentalsPanel({ symbol }: { symbol: string }) {
           daily) to pull US filings from EDGAR automatically. Canadian (SEDAR) and other listings come via
           manual filing upload in Phase 2.
         </p>
+        <div className="mt-3">
+          <AnalysisSection symbol={symbol} />
+        </div>
       </section>
     );
   }
@@ -139,10 +146,122 @@ export function FundamentalsPanel({ symbol }: { symbol: string }) {
         ))}
       </div>
 
+      <div className="mt-3">
+        <AnalysisSection symbol={symbol} />
+      </div>
+
       <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
         Annual 10-K figures from SEC EDGAR (XBRL company facts) · fiscal years, not calendar ·
         Canadian &amp; international filings via manual upload (Phase 2).
       </p>
+    </section>
+  );
+}
+
+/** AI filing analysis: requests the VPS analyzer, renders the encrypted report. */
+function AnalysisSection({ symbol }: { symbol: string }) {
+  const { user } = useCurrentUser();
+  const { toast } = useToast();
+  const request = useRequestAnalysis();
+  const [requested, setRequested] = useState(false);
+  const [sending, setSending] = useState(false);
+  const { data: report } = useAnalysis(symbol, requested ? 20_000 : undefined);
+
+  if (!user) return null;
+
+  const run = async () => {
+    setSending(true);
+    try {
+      await request(symbol);
+      setRequested(true);
+      toast({ title: 'Analysis requested', description: 'The VPS analyzer will run the AI and post an encrypted report here.' });
+    } catch {
+      toast({ title: 'Could not request analysis', variant: 'destructive' });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const verdictUpper = report?.verdict?.toUpperCase() ?? '';
+  const verdictClass = verdictUpper.startsWith('BUY') ? 'text-gain' : verdictUpper.startsWith('SELL') ? 'text-loss' : 'text-signal';
+  const verdictBg = verdictUpper.startsWith('BUY') ? 'bg-gain/15' : verdictUpper.startsWith('SELL') ? 'bg-loss/15' : 'bg-signal/15';
+
+  return (
+    <section className="rounded-md border border-border bg-muted/20 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-widest text-muted-foreground">
+          <Sparkles className="size-3.5 text-signal" /> AI FILING ANALYSIS
+        </h3>
+        {report ? (
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {report.model} · {new Date(report.updatedAt * 1000).toLocaleString()}
+          </span>
+        ) : (
+          <Button size="sm" variant="outline" className="h-7 gap-1 font-mono text-[10px]" onClick={run} disabled={sending || requested}>
+            {sending || requested ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+            {sending ? 'REQUESTING…' : requested ? 'RUNNING…' : 'RUN AI ANALYSIS'}
+          </Button>
+        )}
+      </div>
+
+      {report ? (
+        <div className="mt-2 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn('rounded-md px-2 py-0.5 font-mono text-sm font-bold', verdictClass, verdictBg)}>
+              {report.verdict ?? '—'}
+            </span>
+            <span className="font-mono text-[10px] text-muted-foreground">AI opinion — verify before trading</span>
+          </div>
+          {report.summary ? <p className="text-sm leading-relaxed text-foreground/90">{report.summary}</p> : null}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {report.strengths?.length ? (
+              <div>
+                <div className="mb-1 font-mono text-[10px] font-bold tracking-widest text-gain">STRENGTHS</div>
+                <ul className="space-y-1">
+                  {report.strengths.map((s, i) => (
+                    <li key={i} className="text-xs text-foreground/85">• {s}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {report.risks?.length ? (
+              <div>
+                <div className="mb-1 font-mono text-[10px] font-bold tracking-widest text-loss">RISKS</div>
+                <ul className="space-y-1">
+                  {report.risks.map((s, i) => (
+                    <li key={i} className="text-xs text-foreground/85">• {s}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+          {report.insights?.length ? (
+            <div>
+              <div className="mb-1 font-mono text-[10px] font-bold tracking-widest text-signal">WHAT TO WATCH</div>
+              <ul className="space-y-1">
+                {report.insights.map((s, i) => (
+                  <li key={i} className="text-xs text-foreground/85">→ {s}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {!requested ? (
+            <Button size="sm" variant="outline" className="h-7 font-mono text-[10px]" onClick={run}>
+              <Sparkles className="mr-1 size-3" /> RE-RUN
+            </Button>
+          ) : null}
+        </div>
+      ) : requested ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Waiting for the VPS analyzer (server/analyzer.mjs)… it pulls SEC data, runs the LLM, and posts an
+          encrypted report here. This can take a minute.
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Have the VPS AI summarize this company's SEC filings — plain-English summary, strengths, risks and a
+          verdict. Requires the analyzer service with a DeepSeek key or local Ollama.
+        </p>
+      )}
     </section>
   );
 }

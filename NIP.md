@@ -245,6 +245,33 @@ Figures are annual 10-K values in USD (fiscal years, most-recently-filed per
 year). Read via `{ kinds: [30078], authors: [owner], '#t': [symbol], limit: 8 }`
 and filtered by the `d` prefix.
 
+## AI Filing Analysis (Phase 2)
+
+The app publishes a **request** (d = `vault:analysis:request:<SYMBOL>`, encrypted);
+the VPS analyzer (`server/analyzer.mjs`) pulls SEC data, runs an LLM, and
+publishes a **report** (d = `vault:analysis:<SYMBOL>`, `t`-tagged, encrypted).
+
+**Request content** (encrypted): `{version, symbol, createdAt}`
+
+**Report content** (encrypted):
+
+```json
+{
+  "version": 1,
+  "symbol": "NVDA",
+  "model": "deepseek-chat",
+  "verdict": "HOLD: strong margins but rich valuation",
+  "summary": "…plain-English…",
+  "strengths": ["…", "…"],
+  "risks": ["…", "…"],
+  "insights": ["…", "…"],
+  "updatedAt": 1786734000,
+  "requestedAt": 1786733900
+}
+```
+
+Reports are AI opinion only, encrypted to the owner, and never financial advice.
+
 ## Queries
 
 All events are read with the same author-constrained pattern (shown here for
