@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
@@ -58,9 +58,11 @@ export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPosit
   const [contract, setContract] = useState('');
   const [quantity, setQuantity] = useState('');
   const [avgCost, setAvgCost] = useState('');
+  const [totalCost, setTotalCost] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const lastCostEdit = useRef<'avg' | 'total'>('total');
 
   const { positions, save } = usePositions();
   const { toast } = useToast();
@@ -73,10 +75,30 @@ export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPosit
       setContract(editPosition.contract ?? '');
       setQuantity(String(editPosition.quantity ?? ''));
       setAvgCost(String(editPosition.avgCost ?? ''));
+      setTotalCost(String((editPosition.avgCost ?? 0) * (editPosition.quantity ?? 0) || ''));
       setNote(editPosition.note ?? '');
       setError(null);
+      lastCostEdit.current = 'avg';
     }
   }, [open, editPosition]);
+
+  // Total cost → average cost (total ÷ quantity).
+  useEffect(() => {
+    const q = Number(quantity);
+    const t = Number(totalCost);
+    if (q > 0 && Number.isFinite(t) && t >= 0 && lastCostEdit.current === 'total') {
+      setAvgCost(String(+(t / q).toFixed(4)));
+    }
+  }, [quantity, totalCost]);
+
+  // Average cost → total cost (average × quantity).
+  useEffect(() => {
+    const q = Number(quantity);
+    const a = Number(avgCost);
+    if (q > 0 && Number.isFinite(a) && a >= 0 && lastCostEdit.current === 'avg') {
+      setTotalCost(String(+(a * q).toFixed(2)));
+    }
+  }, [quantity, avgCost]);
 
   const reset = () => {
     setKind('equity');
@@ -84,8 +106,10 @@ export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPosit
     setContract('');
     setQuantity('');
     setAvgCost('');
+    setTotalCost('');
     setNote('');
     setError(null);
+    lastCostEdit.current = 'total';
   };
 
   const submit = async () => {
@@ -245,21 +269,43 @@ export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPosit
                 min="0"
                 step="any"
                 value={avgCost}
-                onChange={(e) => setAvgCost(e.target.value)}
+                onChange={(e) => {
+                  lastCostEdit.current = 'avg';
+                  setAvgCost(e.target.value);
+                }}
                 placeholder="180.50"
                 className="font-mono"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="pos-note" className="font-mono text-[11px] text-muted-foreground">NOTE (OPTIONAL)</Label>
-            <Input
-              id="pos-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Why you bought it, thesis, exit plan…"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="pos-total" className="font-mono text-[11px] text-muted-foreground">TOTAL COST ($)</Label>
+              <Input
+                id="pos-total"
+                type="number"
+                min="0"
+                step="any"
+                value={totalCost}
+                onChange={(e) => {
+                  lastCostEdit.current = 'total';
+                  setTotalCost(e.target.value);
+                }}
+                placeholder="Enter total paid…"
+                className="font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground">Type total — average fills in</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pos-note" className="font-mono text-[11px] text-muted-foreground">NOTE (OPTIONAL)</Label>
+              <Input
+                id="pos-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Why you bought it, thesis, exit plan…"
+              />
+            </div>
           </div>
 
           {error ? <p className="text-xs text-loss">{error}</p> : null}
