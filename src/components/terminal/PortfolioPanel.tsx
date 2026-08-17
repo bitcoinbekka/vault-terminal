@@ -26,6 +26,7 @@ import { Panel } from './Panel';
 import { AddPositionDialog } from './AddPositionDialog';
 import { PayoffCard } from './OptionPayoff';
 import { Mask } from './Mask';
+import { ConfirmDialog } from './ConfirmDialog';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 
 interface Row {
@@ -59,6 +60,7 @@ export function PortfolioPanel() {
   const [addOpen, setAddOpen] = useState(false);
   const [editPos, setEditPos] = useState<Position | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [confirmRemoveKey, setConfirmRemoveKey] = useState<string | null>(null);
 
   const equities = positions.filter((p) => !p.contract);
   const options = positions.filter((p) => p.contract);
@@ -403,21 +405,21 @@ export function PortfolioPanel() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-signal group-hover:opacity-100"
+                          className="size-9 text-muted-foreground hover:text-signal md:size-7 md:opacity-0 md:group-hover:opacity-100"
                           aria-label={`Edit position ${r.label}`}
                           onClick={() => setEditPos(r.position)}
                         >
-                          <Pencil className="size-3.5" />
+                          <Pencil className="size-4 md:size-3.5" />
                         </Button>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-loss group-hover:opacity-100"
+                          className="size-9 text-muted-foreground hover:text-loss md:size-7 md:opacity-0 md:group-hover:opacity-100"
                           aria-label={`Remove position ${r.label}`}
-                          onClick={() => remove(r.key)}
+                          onClick={() => setConfirmRemoveKey(r.key)}
                           disabled={removing === r.key}
                         >
-                          {removing === r.key ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                          {removing === r.key ? <Loader2 className="size-4 animate-spin md:size-3.5" /> : <Trash2 className="size-4 md:size-3.5" />}
                         </Button>
                       </span>
                     </TableCell>
@@ -477,6 +479,20 @@ export function PortfolioPanel() {
         editPosition={editPos}
         onOpenChange={(o) => {
           if (!o) setEditPos(null);
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(confirmRemoveKey)}
+        onOpenChange={(o) => {
+          if (!o) setConfirmRemoveKey(null);
+        }}
+        title="Remove position?"
+        description="Delete this position from your portfolio? It syncs to Nostr immediately."
+        confirmLabel="Remove"
+        loading={Boolean(confirmRemoveKey && removing === confirmRemoveKey)}
+        onConfirm={() => {
+          if (confirmRemoveKey) void remove(confirmRemoveKey);
+          setConfirmRemoveKey(null);
         }}
       />
     </Panel>

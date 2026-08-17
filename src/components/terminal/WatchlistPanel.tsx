@@ -29,6 +29,7 @@ import { PriceChange } from './PriceChange';
 import { Sparkline } from './Sparkline';
 import { AddSymbolDialog } from './AddSymbolDialog';
 import { Mask } from './Mask';
+import { ConfirmDialog } from './ConfirmDialog';
 
 type SortMode = 'symbol' | 'momentum';
 
@@ -54,6 +55,7 @@ export function WatchlistPanel() {
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>('symbol');
 
   const display = user ? watchlist : watchlist.length > 0 ? watchlist : STARTER_WATCHLIST;
@@ -231,12 +233,12 @@ export function WatchlistPanel() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-loss group-hover:opacity-100"
+                      className="size-9 text-muted-foreground hover:text-loss md:size-7 md:opacity-0 md:group-hover:opacity-100"
                       aria-label={`Remove ${r.symbol}`}
-                      onClick={() => remove(r.symbol)}
+                      onClick={() => setConfirmRemove(r.symbol)}
                       disabled={removing === r.symbol}
                     >
-                      {removing === r.symbol ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+                      {removing === r.symbol ? <Loader2 className="size-4 animate-spin md:size-3.5" /> : <X className="size-4 md:size-3.5" />}
                     </Button>
                   ) : null}
                 </TableCell>
@@ -271,6 +273,20 @@ export function WatchlistPanel() {
       </div>
 
       <AddSymbolDialog open={addOpen} onOpenChange={setAddOpen} />
+      <ConfirmDialog
+        open={Boolean(confirmRemove)}
+        onOpenChange={(o) => {
+          if (!o) setConfirmRemove(null);
+        }}
+        title="Remove from watchlist?"
+        description={confirmRemove ? `Remove ${confirmRemove}? Your watchlist syncs to Nostr immediately.` : undefined}
+        confirmLabel="Remove"
+        loading={Boolean(confirmRemove && removing === confirmRemove)}
+        onConfirm={() => {
+          if (confirmRemove) void remove(confirmRemove);
+          setConfirmRemove(null);
+        }}
+      />
     </Panel>
   );
 }

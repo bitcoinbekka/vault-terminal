@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 
 import { Panel } from '@/components/terminal/Panel';
 import { AddTradeDialog } from '@/components/terminal/AddTradeDialog';
+import { ConfirmDialog } from '@/components/terminal/ConfirmDialog';
 
 function Stat({ label, value, className }: { label: string; value: ReactNode; className?: string }) {
   return (
@@ -41,6 +42,7 @@ const JournalPage = () => {
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
   const sorted = [...trades].sort((a, b) => b.date - a.date);
 
@@ -168,12 +170,12 @@ const JournalPage = () => {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-loss group-hover:opacity-100"
+                        className="size-9 text-muted-foreground hover:text-loss md:size-7 md:opacity-0 md:group-hover:opacity-100"
                         aria-label="Delete trade"
-                        onClick={() => remove(t.id)}
+                        onClick={() => setConfirmRemove(t.id)}
                         disabled={removing === t.id}
                       >
-                        {removing === t.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                        {removing === t.id ? <Loader2 className="size-4 animate-spin md:size-3.5" /> : <Trash2 className="size-4 md:size-3.5" />}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -188,6 +190,20 @@ const JournalPage = () => {
       )}
 
       <AddTradeDialog open={addOpen} onOpenChange={setAddOpen} />
+      <ConfirmDialog
+        open={Boolean(confirmRemove)}
+        onOpenChange={(o) => {
+          if (!o) setConfirmRemove(null);
+        }}
+        title="Delete trade?"
+        description="This trade is removed from your journal and the FIFO realized P/L recalculates. Syncs to Nostr."
+        confirmLabel="Delete"
+        loading={Boolean(confirmRemove && removing === confirmRemove)}
+        onConfirm={() => {
+          if (confirmRemove) void remove(confirmRemove);
+          setConfirmRemove(null);
+        }}
+      />
     </div>
   );
 };
