@@ -271,10 +271,13 @@ Add a cron job:
 crontab -e
 ```
 
-Add this line (hourly):
+Add these two lines (hourly snapshots + daily SEC fundamentals). They source
+`/etc/vault-alerts.env` first so the scripts get `VAULT_NSEC` / `VAULT_RELAYS`
+(cron doesn't read the systemd EnvironmentFile):
 
 ```
-0 * * * * cd /var/www/vault && /usr/bin/node server/market-snapshot.mjs >> /var/log/vault-snapshot.log 2>&1
+0 * * * * cd /var/www/vault && set -a && . /etc/vault-alerts.env && set +a && /usr/bin/node server/market-snapshot.mjs >> /var/log/vault-snapshot.log 2>&1
+0 6 * * * cd /var/www/vault && set -a && . /etc/vault-alerts.env && set +a && /usr/bin/node server/sec-fundamentals.mjs >> /var/log/vault-sec.log 2>&1
 ```
 
 Then watch it work:
