@@ -17,6 +17,7 @@ import { usePositions, type Position } from '@/hooks/usePositions';
 import { useCboeChains, useQuotes } from '@/hooks/useYahoo';
 import { useTrades } from '@/hooks/useTrades';
 import { useToast } from '@/hooks/useToast';
+import { toUsd, useUsdRates } from '@/hooks/useFx';
 
 import { colorForChange, formatExpiration, formatPrice, formatSigned } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,11 @@ interface Row {
   cost: number;
   dayPnl: number | null;
   pnl: number | null;
+  currency: string;
+  usdValue: number | null;
+  usdCost: number | null;
+  usdDayPnl: number | null;
+  usdPnl: number | null;
   position: Position;
 }
 
@@ -60,6 +66,30 @@ export function PortfolioPanel() {
   // Underlying prices, for the option payoff markers (deduped with watchlist/tape).
   const underlyingQuotes = useQuotes(optionUnderlyings);
 
+  // Currencies present in the portfolio (from quote metadata), for USD totals.
+  const currencies = useMemo(() => {
+    const set = new Set<string>();
+    equityQuotes.forEach((q) => {
+      const c = q.data?.meta?.currency;
+      if (c && c !== 'USD') set.add(c);
+    });
+    underlyingQuotes.forEach((q) => {
+      const c = q.data?.meta?.currency;
+      if (c && c !== 'USD') set.add(c);
+    });
+    return [...set];
+  }, [equityQuotes, underlyingQuotes]);
+  const { rates } = useUsdRates(currencies);
+
+  const currencyFor = (symbol: string): string => {
+    const idx = equitySymbols.indexOf(symbol);
+    return equityQuotes[idx]?.data?.meta?.currency ?? 'USD';
+  };
+  const optionCurrencyFor = (symbol: string): string => {
+    const idx = optionUnderlyings.indexOf(symbol);
+    return underlyingQuotes[idx]?.data?.meta?.currency ?? 'USD';
+  };
+
   const underlyingPriceFor = (symbol: string): number | null => {
     const idx = optionUnderlyings.indexOf(symbol);
     return underlyingQuotes[idx]?.data?.meta?.regularMarketPrice ?? null;
@@ -75,6 +105,9 @@ export function PortfolioPanel() {
       const prev = meta ? (meta.chartPreviousClose ?? meta.previousClose ?? null) : null;
       const value = last !== null ? last * p.quantity : null;
       const cost = p.avgCost * p.quantity;
+      const dayPnl = last !== null && prev !== null ? (last - prev) * p.quantity : null;
+      const pnl = value !== null ? value - cost : null;
+      const currency = meta?.currency ?? 'USD';
       out.push({
         key: `eq-${p.symbol}-${p.quantity}-${p.avgCost}`,
         label: p.symbol,
@@ -85,8 +118,13 @@ export function PortfolioPanel() {
         prevClose: prev,
         value,
         cost,
-        dayPnl: last !== null && prev !== null ? (last - prev) * p.quantity : null,
-        pnl: value !== null ? value - cost : null,
+        dayPnl,
+        pnl,
+        currency,
+        usdValue: value !== null ? toUsd(value, currency, rates) : null,
+        usdCost: toUsd(cost, currency, rates),
+        usdDayPnl: dayPnl !== null ? toUsd(dayPnl, currency, rates) : null,
+        usdPnl: pnl !== null ? toUsd(pnl, currency, rates) : null,
         position: p,
       });
     }
@@ -100,6 +138,9 @@ export function PortfolioPanel() {
       const mult = 100;
       const value = last !== null ? last * p.quantity * mult : null;
       const cost = p.avgCost * p.quantity * mult;
+      const dayPnl = last !== null && prev !== null ? (last - prev) * p.quantity * mult : null;
+      const pnl = value !== null ? value - cost : null;
+      const currency = optionCurrencyFor(p.symbol);
       out.push({
         key: `opt-${p.contract}`,
         label: `${p.symbol} ${p.expiry ? formatExpiration(p.expiry) : ''} ${p.optionType ?? ''} ${p.strike ? formatPrice(p.strike) : ''}`,
@@ -110,22 +151,27 @@ export function PortfolioPanel() {
         prevClose: prev,
         value,
         cost,
-        dayPnl: last !== null && prev !== null ? (last - prev) * p.quantity * mult : null,
-        pnl: value !== null ? value - cost : null,
+        dayPnl,
+        pnl,
+        currency,
+        usdValue: value !== null ? toUsd(value, currency, rates) : null,
+        usdCost: toUsd(cost, currency, rates),
+        usdDayPnl: dayPnl !== null ? toUsd(dayPnl, currency, rates) : null,
+        usdPnl: pnl !== null ? toUsd(pnl, currency, rates) : null,
         position: p,
       });
     }
 
     return out;
-  }, [equities, options, equitySymbols, optionUnderlyings, equityQuotes, chains]);
+  }, [equities, options, equitySymbols, optionUnderlyings, equityQuotes, underlyingQuotes, chains, rates]);
 
   const totals = useMemo(() => {
     return rows.reduce(
       (acc, r) => {
-        acc.cost += r.cost;
-        if (r.value !== null) acc.value += r.value;
-        if (r.dayPnl !== null) acc.dayPnl += r.dayPnl;
-        if (r.pnl !== null) acc.pnl += r.pnl;
+        if (r.usdCost !== null) acc.cost += r.usdCost;
+        if (r.usdValue !== null) acc.value += r.usdValue;
+        if (r.usdDayPnl !== null) acc.dayPnl += r.usdDayPnl;
+        if (r.usdPnl !== null) acc.pnl += r.usdPnl;
         return acc;
       },
       { cost: 0, value: 0, dayPnl: 0, pnl: 0 },
@@ -136,19 +182,19 @@ export function PortfolioPanel() {
   const unrealizedPct = totals.cost > 0 ? (unrealized / totals.cost) * 100 : null;
   const netPnl = journal.netRealizedPnl + unrealized;
 
-  // Allocation
+  // Allocation (USD-normalized)
   const alloc = useMemo(() => {
-    const valued = rows.filter((r) => r.value !== null && r.value > 0);
-    const totalValue = valued.reduce((s, r) => s + (r.value ?? 0), 0);
+    const valued = rows.filter((r) => r.usdValue !== null && r.usdValue > 0);
+    const totalValue = valued.reduce((s, r) => s + (r.usdValue ?? 0), 0);
     if (totalValue <= 0) return null;
-    const sorted = [...valued].sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+    const sorted = [...valued].sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
     const top = sorted.slice(0, 6);
     const rest = sorted.slice(6);
-    const restValue = rest.reduce((s, r) => s + (r.value ?? 0), 0);
+    const restValue = rest.reduce((s, r) => s + (r.usdValue ?? 0), 0);
     const segs = top.map((r, i) => ({
       label: r.label.split(' ')[0],
-      value: r.value ?? 0,
-      pct: ((r.value ?? 0) / totalValue) * 100,
+      value: r.usdValue ?? 0,
+      pct: ((r.usdValue ?? 0) / totalValue) * 100,
       color: ALLOC_COLORS[i % ALLOC_COLORS.length],
     }));
     if (restValue > 0) {
@@ -158,9 +204,9 @@ export function PortfolioPanel() {
   }, [rows]);
 
   const best = useMemo(() => {
-    const valued = rows.filter((r) => r.pnl !== null);
+    const valued = rows.filter((r) => r.usdPnl !== null);
     if (valued.length === 0) return null;
-    const byPnl = [...valued].sort((a, b) => (b.pnl ?? 0) - (a.pnl ?? 0));
+    const byPnl = [...valued].sort((a, b) => (b.usdPnl ?? 0) - (a.usdPnl ?? 0));
     return { winner: byPnl[0], loser: byPnl[byPnl.length - 1] };
   }, [rows]);
 
@@ -213,13 +259,13 @@ export function PortfolioPanel() {
           <div className="border-b border-border bg-muted/20 px-3 py-3">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div>
-                <div className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">DAY P/L</div>
+                <div className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">DAY P/L (USD)</div>
                 <div className={cn('font-mono text-base font-bold tabular-nums', colorForChange(totals.dayPnl))}>
                   {formatSigned(totals.dayPnl)}
                 </div>
               </div>
               <div>
-                <div className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">UNREALIZED</div>
+                <div className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">UNREALIZED (USD)</div>
                 <div className={cn('font-mono text-base font-bold tabular-nums', colorForChange(unrealized))}>
                   {formatSigned(unrealized)}
                   {unrealizedPct !== null ? <span className="ml-1 text-[11px] opacity-70">({unrealizedPct.toFixed(1)}%)</span> : null}
@@ -232,7 +278,7 @@ export function PortfolioPanel() {
                 </div>
               </div>
               <div>
-                <div className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">NET P/L</div>
+                <div className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">NET P/L (USD)</div>
                 <div className={cn('font-mono text-base font-bold tabular-nums', colorForChange(netPnl))}>
                   {formatSigned(netPnl)}
                 </div>
@@ -262,12 +308,12 @@ export function PortfolioPanel() {
                 <span className="flex items-center gap-1.5">
                   <span className="font-mono text-[10px] font-bold text-muted-foreground">BEST</span>
                   <span className="font-mono font-semibold">{best.winner.label.split(' ')[0]}</span>
-                  <span className={cn('font-mono tabular-nums', colorForChange(best.winner.pnl))}>{formatSigned(best.winner.pnl)}</span>
+                  <span className={cn('font-mono tabular-nums', colorForChange(best.winner.usdPnl))}>{formatSigned(best.winner.usdPnl)}</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="font-mono text-[10px] font-bold text-muted-foreground">WORST</span>
                   <span className="font-mono font-semibold">{best.loser.label.split(' ')[0]}</span>
-                  <span className={cn('font-mono tabular-nums', colorForChange(best.loser.pnl))}>{formatSigned(best.loser.pnl)}</span>
+                  <span className={cn('font-mono tabular-nums', colorForChange(best.loser.usdPnl))}>{formatSigned(best.loser.usdPnl)}</span>
                 </span>
               </div>
             ) : null}
@@ -299,15 +345,41 @@ export function PortfolioPanel() {
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm tabular-nums">{r.qty}</TableCell>
                     <TableCell className="hidden text-right font-mono text-xs tabular-nums text-muted-foreground xl:table-cell">{formatPrice(r.avgCost)}</TableCell>
-                    <TableCell className="text-right font-mono text-sm tabular-nums">{formatPrice(r.last)}</TableCell>
-                    <TableCell className="text-right font-mono text-sm tabular-nums">{formatPrice(r.value)}</TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-mono text-sm tabular-nums">
+                        {formatPrice(r.last)}
+                        {r.currency !== 'USD' ? (
+                          <span className="ml-1 rounded-sm bg-muted px-1 font-mono text-[9px] font-bold text-muted-foreground">{r.currency}</span>
+                        ) : null}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="flex flex-col items-end">
+                        <span className="font-mono text-sm tabular-nums">
+                          {formatPrice(r.value)}
+                          {r.currency !== 'USD' ? (
+                            <span className="ml-1 rounded-sm bg-muted px-1 font-mono text-[9px] font-bold text-muted-foreground">{r.currency}</span>
+                          ) : null}
+                        </span>
+                        {r.currency !== 'USD' && r.usdValue !== null ? (
+                          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">≈ ${r.usdValue.toFixed(0)} USD</span>
+                        ) : null}
+                      </span>
+                    </TableCell>
                     <TableCell className={cn('hidden text-right font-mono text-sm tabular-nums xl:table-cell', colorForChange(r.dayPnl))}>
                       {formatSigned(r.dayPnl)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className={cn('font-mono text-sm font-semibold tabular-nums', colorForChange(r.pnl))}>
-                        {formatSigned(r.pnl)}
-                        {pnlPct !== null ? <span className="ml-1 text-[11px] opacity-70">({pnlPct.toFixed(1)}%)</span> : null}
+                      <span className="flex flex-col items-end">
+                        <span className={cn('font-mono text-sm font-semibold tabular-nums', colorForChange(r.pnl))}>
+                          {formatSigned(r.pnl)}
+                          {pnlPct !== null ? <span className="ml-1 text-[11px] opacity-70">({pnlPct.toFixed(1)}%)</span> : null}
+                        </span>
+                        {r.currency !== 'USD' && r.usdPnl !== null ? (
+                          <span className={cn('font-mono text-[10px] tabular-nums', colorForChange(r.usdPnl))}>
+                            ≈ {formatSigned(r.usdPnl)} USD
+                          </span>
+                        ) : null}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
@@ -329,7 +401,7 @@ export function PortfolioPanel() {
             <TableFooter>
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={4} className="font-mono text-xs font-bold tracking-wider text-foreground">
-                  TOTAL
+                  TOTAL (USD)
                 </TableCell>
                 <TableCell className="text-right font-mono text-sm font-bold tabular-nums">{formatPrice(totals.value)}</TableCell>
                 <TableCell className={cn('hidden text-right font-mono text-sm font-bold tabular-nums xl:table-cell', colorForChange(totals.dayPnl))}>
@@ -366,7 +438,7 @@ export function PortfolioPanel() {
 
       <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
         {user
-          ? 'Marked to market from delayed quotes · option contracts × 100 · realized P/L from your journal · stored on Nostr kind 30078'
+          ? 'Marked to market from delayed quotes · totals normalized to USD via live FX (non-USD rows show ≈ USD) · option contracts × 100 · realized P/L from your journal (treated as USD) · stored on Nostr kind 30078'
           : 'Log in to track positions on Nostr'}
       </div>
 

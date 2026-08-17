@@ -34,6 +34,7 @@ type SortMode = 'symbol' | 'momentum';
 interface Row {
   symbol: string;
   name: string;
+  currency: string;
   price: number | null;
   change: number | null;
   pct: number | null;
@@ -83,6 +84,7 @@ export function WatchlistPanel() {
       return {
         symbol,
         name: meta?.longName ?? meta?.shortName ?? '',
+        currency: meta?.currency ?? 'USD',
         price,
         change,
         pct,
@@ -187,6 +189,9 @@ export function WatchlistPanel() {
                   <Link to={`/stock/${r.symbol}`} className="flex flex-col">
                     <span className="flex items-center gap-1.5 font-mono text-sm font-bold group-hover:text-signal">
                       {r.symbol}
+                      {r.currency !== 'USD' ? (
+                        <span className="rounded-sm bg-muted px-1 font-mono text-[9px] font-bold text-muted-foreground">{r.currency}</span>
+                      ) : null}
                       {r.pos?.isOption ? (
                         <span className="rounded-sm bg-signal/15 px-1 font-mono text-[9px] font-bold text-signal" title="Has option positions">OPT</span>
                       ) : r.pos ? (

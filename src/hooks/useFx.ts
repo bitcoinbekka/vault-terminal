@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQueries, useQuery } from '@tanstack/react-query';
 
 import { fetchChart } from '@/lib/yahoo';
 import { fxSymbol } from '@/lib/fx';
@@ -46,4 +47,47 @@ export function convertFx(
   if (to === 'USD') return usd ?? null;
   if (!usdTo) return null;
   return usd * usdTo;
+}
+
+/**
+ * Batched USD rates (units of each currency per 1 USD) for portfolio
+ * normalization. Shares the same query keys as `useFxRate`, so no dupes.
+ */
+export function useUsdRates(currencies: string[]) {
+  const unique = useMemo(
+    () => [...new Set(currencies.filter((c) => c && c !== 'USD'))],
+    [currencies],
+  );
+
+  const queries = useQueries({
+    queries: unique.map((cur) => ({
+      queryKey: ['yahoo', 'fx', fxSymbol('USD', cur)],
+      queryFn: async ({ signal }) => {
+        const data = await fetchChart(fxSymbol('USD', cur), '1d', '5m', signal);
+        const price = data.meta?.regularMarketPrice;
+        return typeof price === 'number' && price > 0 ? price : null;
+      },
+      staleTime: 60_000,
+      retry: 1,
+      enabled: true,
+    })),
+  });
+
+  const rates = useMemo(() => {
+    const map = new Map<string, number>();
+    unique.forEach((cur, i) => {
+      const v = queries[i].data;
+      if (typeof v === 'number' && v > 0) map.set(cur, v);
+    });
+    return map;
+  }, [queries, unique]);
+
+  return { rates, loading: queries.some((q) => q.isPending) };
+}
+
+/** Convert a native-currency value to USD using a rates map (null if no rate). */
+export function toUsd(value: number, currency: string, rates: Map<string, number>): number | null {
+  if (currency === 'USD') return value;
+  const rate = rates.get(currency);
+  return rate ? value / rate : null;
 }
