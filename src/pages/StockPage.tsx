@@ -21,6 +21,10 @@ import { AddPositionDialog } from '@/components/terminal/AddPositionDialog';
 import { AddAlertDialog } from '@/components/terminal/AddAlertDialog';
 import { AddTradeDialog } from '@/components/terminal/AddTradeDialog';
 import { SnapshotsPanel } from '@/components/terminal/SnapshotsPanel';
+import { SupplyChainPanel } from '@/components/terminal/SupplyChainPanel';
+
+import { useFxRate } from '@/hooks/useFx';
+import { CURRENCIES } from '@/lib/fx';
 
 import { CHART_RANGES, DEFAULT_RANGE, isValidSymbol, normalizeSymbol } from '@/lib/yahoo';
 import { formatCompact, formatPrice, formatTime } from '@/lib/format';
@@ -53,6 +57,9 @@ const StockPage = () => {
   const info = useYahooSearch(symbol, valid);
   // Fetch the (large) options chain only when the user opens the Options tab.
   const options = useYahooOptions(symbol, valid && tab === 'options');
+  // USD equivalent for non-USD listings (e.g. CAD tickers).
+  const metaCurrency = chart.data?.meta?.currency;
+  const usdRate = useFxRate('USD', metaCurrency ?? 'USD');
 
   const { watchlist, save, user } = useWatchlist();
   const { toast } = useToast();
@@ -136,11 +143,23 @@ const StockPage = () => {
           </div>
 
           <div className="text-right">
-            <div className="font-mono text-4xl font-bold tabular-nums">{formatPrice(price)}</div>
+            <div className="flex items-center justify-end gap-2">
+              <div className="font-mono text-4xl font-bold tabular-nums">{formatPrice(price)}</div>
+              {metaCurrency && metaCurrency !== 'USD' && CURRENCIES.some((c) => c.code === metaCurrency) ? (
+                <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">
+                  {metaCurrency}
+                </span>
+              ) : null}
+            </div>
             <PriceChange change={change} percent={pct} className="text-lg" />
             <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
               PREV CLOSE {formatPrice(prev)}
             </div>
+            {metaCurrency && metaCurrency !== 'USD' && CURRENCIES.some((c) => c.code === metaCurrency) && typeof price === 'number' && usdRate.data ? (
+              <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                ≈ ${(price / usdRate.data).toFixed(2)} USD
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -257,6 +276,10 @@ const StockPage = () => {
               recent corporate updates. Add {symbol} to your watchlist to keep it on the terminal home
               screen, and track it as a position to see live P/L.
             </p>
+
+            <div className="mt-4">
+              <SupplyChainPanel symbol={symbol} />
+            </div>
           </TabsContent>
 
           <TabsContent value="options" className="pt-4">

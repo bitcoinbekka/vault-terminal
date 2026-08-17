@@ -28,6 +28,12 @@ A dark "terminal" for retail traders:
   rate, avg hold time, open lots.
 - **Position sizer (`/sizer`, `SIZER <GO>`)** — risk-based sizing (account %,
   entry, stop → shares/$ risked/position value); prefilled from stock pages.
+- **Currency converter (`/fx`, `FX <GO>`)** — live Yahoo FX pairs (e.g.
+  `USDCAD=X`) routed through USD for cross pairs; stock pages show the ≈ USD
+  equivalent for non-USD listings (`src/lib/fx.ts`, `src/hooks/useFx.ts`).
+- **Supply chain (`SupplyChainPanel`)** — news-based connected-company
+  discovery for any stock (`useSupplyChain` searches "{symbol} supplier /
+  supply chain / customer", aggregates relatedTickers + headlines).
 - **Hourly snapshots** — `server/market-snapshot.mjs` publishes per-symbol
   hourly snapshots to Nostr (kind 30078 `vault:snapshot:<SYMBOL>:<hour>`,
   encrypted, `t`-tagged); the stock page shows them in

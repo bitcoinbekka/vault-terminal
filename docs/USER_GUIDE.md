@@ -83,6 +83,14 @@ on **Nostr**, so it follows your identity (npub) instead of an app account.
 - Risk-based sizer: account size, risk % per trade, entry and stop → **shares, $ risked, position value, % of account**.
 - Hit **SIZER** on any stock page to prefill the symbol and current price.
 
+**Currency converter — `FX <GO>`**
+- Live converter for cross-border stocks: USD, CAD, EUR, JPY and 20+ currencies via Yahoo FX.
+- On any stock listed in a non-USD currency (e.g. a Canadian ticker), the header shows the **≈ USD equivalent** automatically.
+
+**Supply chain — stock page → Overview tab**
+- See **connected companies** (who supplies whom) and **supply-chain news** for any stock, e.g. chip suppliers for NVDA.
+- Sourced from news coverage — a guide, not an exhaustive database.
+
 **Your own price history — Hourly Snapshots**
 - Run `node server/market-snapshot.mjs` on your VPS (cron: hourly) and every watchlist symbol's price is
   snapshotted to Nostr, encrypted to your key.

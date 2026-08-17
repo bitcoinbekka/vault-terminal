@@ -87,6 +87,14 @@ export const COMMANDS: VaultCommand[] = [
     aliases: ['WL'],
   },
   {
+    code: 'FX',
+    name: 'Currency Converter',
+    description: 'Live FX converter for cross-border stocks (USD, CAD, EUR, JPY…)',
+    kind: 'route',
+    target: '/fx',
+    aliases: ['CONVERT', 'CURRENCY'],
+  },
+  {
     code: 'SIZER',
     name: 'Position Sizing',
     description: 'Risk-based position size calculator (account %, entry, stop)',

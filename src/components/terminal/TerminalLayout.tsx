@@ -90,6 +90,12 @@ export function TerminalLayout() {
               SIZER
             </Link>
             <Link
+              to="/fx"
+              className="rounded px-2 py-1 text-xs font-semibold tracking-wider text-muted-foreground hover:text-foreground"
+            >
+              FX
+            </Link>
+            <Link
               to="/journal"
               className="rounded px-2 py-1 text-xs font-semibold tracking-wider text-muted-foreground hover:text-foreground"
             >
