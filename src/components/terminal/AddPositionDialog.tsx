@@ -224,7 +224,8 @@ export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPosit
                 ))}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Works for shares, commodities (ounces) and crypto (coins) — quantity × live price = market value.
+                Shares, commodities (ounces) and crypto (coins) — enter quantity + total value and the
+                per-unit average fills in automatically.
               </p>
             </div>
           ) : (
@@ -261,7 +262,7 @@ export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPosit
             </div>
             <div className="space-y-2">
               <Label htmlFor="pos-cost" className="font-mono text-[11px] text-muted-foreground">
-                {kind === 'option' ? 'AVG COST / CONTRACT' : 'AVG COST / SHARE'}
+                {kind === 'option' ? 'AVG PRICE / CONTRACT' : 'AVG PRICE / UNIT'}
               </Label>
               <Input
                 id="pos-cost"
@@ -281,7 +282,7 @@ export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPosit
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="pos-total" className="font-mono text-[11px] text-muted-foreground">TOTAL COST ($)</Label>
+              <Label htmlFor="pos-total" className="font-mono text-[11px] text-muted-foreground">TOTAL VALUE ($)</Label>
               <Input
                 id="pos-total"
                 type="number"
@@ -292,10 +293,10 @@ export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPosit
                   lastCostEdit.current = 'total';
                   setTotalCost(e.target.value);
                 }}
-                placeholder="Enter total paid…"
+                placeholder="Enter total value…"
                 className="font-mono"
               />
-              <p className="text-[10px] text-muted-foreground">Type total — average fills in</p>
+              <p className="text-[10px] text-muted-foreground">Total value of the lot — per-unit average fills in</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="pos-note" className="font-mono text-[11px] text-muted-foreground">NOTE (OPTIONAL)</Label>
