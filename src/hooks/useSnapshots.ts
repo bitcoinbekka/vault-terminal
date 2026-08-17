@@ -47,7 +47,7 @@ export function useSnapshots(symbol: string) {
     queryFn: async ({ signal }) => {
       if (!pubkey) return [] as MarketSnapshot[];
       const events = await nostr.query(
-        [{ kinds: [SNAPSHOT_KIND], authors: [pubkey], '#t': [upper], limit: 24 }],
+        [{ kinds: [SNAPSHOT_KIND], authors: [pubkey], '#t': [upper], limit: 30 }],
         { signal },
       );
 

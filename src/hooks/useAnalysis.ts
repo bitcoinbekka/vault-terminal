@@ -42,26 +42,25 @@ export function useAnalysis(symbol: string, refetchIntervalMs?: number) {
     refetchInterval: refetchIntervalMs,
     queryFn: async ({ signal }) => {
       if (!pubkey) return null;
+      // Exact d-tag lookup — avoids being crowded out by high-frequency
+      // snapshot events that share the same `t` tag.
       const events = await nostr.query(
-        [{ kinds: [ANALYSIS_KIND], authors: [pubkey], '#t': [upper], limit: 5 }],
+        [{ kinds: [ANALYSIS_KIND], authors: [pubkey], '#d': [`${ANALYSIS_RESULT_PREFIX}${upper}`], limit: 1 }],
         { signal },
       );
-      for (const ev of events) {
-        const d = ev.tags.find(([k]) => k === 'd')?.[1] ?? '';
-        if (!d.startsWith(`${ANALYSIS_RESULT_PREFIX}${upper}`)) continue;
-        let parsed: AnalysisReport | null = null;
-        if (isEncryptedEvent(ev)) {
-          parsed = user ? await decryptOwnData<AnalysisReport>(user.signer, pubkey, ev.content) : null;
-        } else {
-          try {
-            parsed = JSON.parse(ev.content) as AnalysisReport;
-          } catch {
-            parsed = null;
-          }
+      const ev = events[0];
+      if (!ev) return null;
+      let parsed: AnalysisReport | null = null;
+      if (isEncryptedEvent(ev)) {
+        parsed = user ? await decryptOwnData<AnalysisReport>(user.signer, pubkey, ev.content) : null;
+      } else {
+        try {
+          parsed = JSON.parse(ev.content) as AnalysisReport;
+        } catch {
+          parsed = null;
         }
-        if (parsed && typeof parsed.summary === 'string') return parsed;
       }
-      return null;
+      return parsed && typeof parsed.summary === 'string' ? parsed : null;
     },
     staleTime: 30_000,
   });

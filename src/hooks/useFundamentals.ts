@@ -44,27 +44,25 @@ export function useFundamentals(symbol: string) {
     enabled: Boolean(pubkey && upper),
     queryFn: async ({ signal }) => {
       if (!pubkey) return null;
+      // Exact d-tag lookup — avoids being crowded out by snapshot events that
+      // share the same `t` tag.
       const events = await nostr.query(
-        [{ kinds: [FUNDAMENTALS_KIND], authors: [pubkey], '#t': [upper], limit: 8 }],
+        [{ kinds: [FUNDAMENTALS_KIND], authors: [pubkey], '#d': [`${FUNDAMENTALS_PREFIX}${upper}`], limit: 1 }],
         { signal },
       );
-
-      for (const ev of events) {
-        const d = ev.tags.find(([k]) => k === 'd')?.[1] ?? '';
-        if (!d.startsWith(`${FUNDAMENTALS_PREFIX}${upper}`)) continue;
-        let parsed: FundamentalsReport | null = null;
-        if (isEncryptedEvent(ev)) {
-          parsed = user ? await decryptOwnData<FundamentalsReport>(user.signer, pubkey, ev.content) : null;
-        } else {
-          try {
-            parsed = JSON.parse(ev.content) as FundamentalsReport;
-          } catch {
-            parsed = null;
-          }
+      const ev = events[0];
+      if (!ev) return null;
+      let parsed: FundamentalsReport | null = null;
+      if (isEncryptedEvent(ev)) {
+        parsed = user ? await decryptOwnData<FundamentalsReport>(user.signer, pubkey, ev.content) : null;
+      } else {
+        try {
+          parsed = JSON.parse(ev.content) as FundamentalsReport;
+        } catch {
+          parsed = null;
         }
-        if (parsed && Array.isArray(parsed.years)) return parsed;
       }
-      return null;
+      return parsed && Array.isArray(parsed.years) ? parsed : null;
     },
     staleTime: 60_000,
   });
