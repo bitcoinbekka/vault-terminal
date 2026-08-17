@@ -22,6 +22,7 @@ import { AddAlertDialog } from '@/components/terminal/AddAlertDialog';
 import { AddTradeDialog } from '@/components/terminal/AddTradeDialog';
 import { SnapshotsPanel } from '@/components/terminal/SnapshotsPanel';
 import { SupplyChainPanel } from '@/components/terminal/SupplyChainPanel';
+import { FundamentalsPanel } from '@/components/terminal/FundamentalsPanel';
 
 import { useFxRate } from '@/hooks/useFx';
 import { CURRENCIES } from '@/lib/fx';
@@ -254,8 +255,9 @@ const StockPage = () => {
       {/* Detail tabs */}
       <section className="rounded-lg border border-border bg-card p-3">
         <Tabs defaultValue="overview" value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview" className="font-mono text-xs">OVERVIEW</TabsTrigger>
+            <TabsTrigger value="fundamentals" className="font-mono text-xs">FUNDAMENTALS</TabsTrigger>
             <TabsTrigger value="options" className="font-mono text-xs">OPTIONS</TabsTrigger>
             <TabsTrigger value="news" className="font-mono text-xs">NEWS</TabsTrigger>
           </TabsList>
@@ -280,6 +282,10 @@ const StockPage = () => {
             <div className="mt-4">
               <SupplyChainPanel symbol={symbol} />
             </div>
+          </TabsContent>
+
+          <TabsContent value="fundamentals" className="pt-4">
+            <FundamentalsPanel symbol={symbol} />
           </TabsContent>
 
           <TabsContent value="options" className="pt-4">

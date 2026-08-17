@@ -34,6 +34,12 @@ A dark "terminal" for retail traders:
 - **Supply chain (`SupplyChainPanel`)** — news-based connected-company
   discovery for any stock (`useSupplyChain` searches "{symbol} supplier /
   supply chain / customer", aggregates relatedTickers + headlines).
+- **SEC fundamentals (`FundamentalsPanel`)** — `server/sec-fundamentals.mjs`
+  pulls annual 10-K figures from SEC EDGAR (US equities in the watchlist,
+  free XBRL) and publishes encrypted reports to Nostr
+  (`vault:fundamentals:<SYMBOL>`); the stock page's FUNDAMENTALS tab renders
+  revenue/income/margins charts + key stats. Canadian filings are manual
+  (SEDAR has no API) — the Phase 2 AI analyzer adds PDF upload.
 - **Hourly snapshots** — `server/market-snapshot.mjs` publishes per-symbol
   hourly snapshots to Nostr (kind 30078 `vault:snapshot:<SYMBOL>:<hour>`,
   encrypted, `t`-tagged); the stock page shows them in

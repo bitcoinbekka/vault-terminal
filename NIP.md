@@ -201,6 +201,50 @@ One addressable event per symbol per hour, so relays retain the full series.
 Read via `{ kinds: [30078], authors: [owner], '#t': [symbol], limit: 24 }` and
 filtered by the `d` prefix. Snapshots are market data (not financial advice).
 
+## SEC Fundamentals (`d` = `vault:fundamentals:<SYMBOL>`)
+
+Written by the server-side SEC fetcher (`server/sec-fundamentals.mjs`) on the
+owner's VPS (typically daily via cron). Pulls annual 10-K figures from SEC
+EDGAR (free, structured XBRL) for US-listed watchlist symbols and publishes an
+encrypted summary. Canadian (SEDAR) and other non-US listings are skipped —
+manual filing upload arrives with the Phase 2 analyzer.
+
+**Tags**
+
+| Tag | Values | Purpose |
+| --- | --- | --- |
+| `d` | `vault:fundamentals:AAPL` | Addressable identifier |
+| `t` | uppercase symbol | Relay-queryable per symbol |
+| `enc` | `nip44` | Content is NIP-44 ciphertext (owner-only) |
+
+**Content** (plaintext JSON, then encrypted):
+
+```json
+{
+  "version": 1,
+  "symbol": "NVDA",
+  "cik": 1045810,
+  "name": "NVIDIA CORP",
+  "updatedAt": 1786734000,
+  "years": [
+    {
+      "year": 2024,
+      "revenue": 60922000000,
+      "netIncome": 29760000000,
+      "eps": 11.93,
+      "grossProfit": 42246000000,
+      "operatingIncome": 33313000000,
+      "totalAssets": 65728000000,
+      "totalLiabilities": 27712000000
+    }
+  ]
+}
+```
+
+Figures are annual 10-K values in USD (fiscal years, most-recently-filed per
+year). Read via `{ kinds: [30078], authors: [owner], '#t': [symbol], limit: 8 }`
+and filtered by the `d` prefix.
+
 ## Queries
 
 All events are read with the same author-constrained pattern (shown here for
