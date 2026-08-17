@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePositions, type Position } from '@/hooks/usePositions';
 import { useToast } from '@/hooks/useToast';
 import { isValidSymbol, normalizeSymbol, parseOCC } from '@/lib/yahoo';
+import { cn } from '@/lib/utils';
 
 const equitySchema = z.object({
   kind: z.literal('equity'),
@@ -150,9 +151,34 @@ export function AddPositionDialog({ open, onOpenChange }: AddPositionDialogProps
                 id="pos-symbol"
                 value={symbol}
                 onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                placeholder="AAPL"
+                placeholder="AAPL, GC=F, BTC-USD…"
                 className="font-mono uppercase"
               />
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  ['GOLD', 'GC=F'],
+                  ['SILVER', 'SI=F'],
+                  ['BITCOIN', 'BTC-USD'],
+                  ['ETHEREUM', 'ETH-USD'],
+                ].map(([label, sym]) => (
+                  <button
+                    key={sym}
+                    type="button"
+                    onClick={() => setSymbol(sym)}
+                    className={cn(
+                      'rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold transition-colors',
+                      symbol === sym
+                        ? 'border-signal bg-signal/15 text-signal'
+                        : 'border-border text-muted-foreground hover:text-signal',
+                    )}
+                  >
+                    {label} · {sym}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Works for shares, commodities (ounces) and crypto (coins) — quantity × live price = market value.
+              </p>
             </div>
           ) : (
             <div className="space-y-2">

@@ -38,7 +38,11 @@ on **Nostr**, so it follows your identity (npub) instead of an app account.
 
 **Track what you own**
 - **TRACK POSITION** on any stock page → add shares (symbol, qty, avg cost) or
-  option contracts (paste the OCC contract symbol, e.g. `AAPL260919C00200000`).
+  option contracts (paste the OCC contract like `AAPL260919C00200000`).
+- **Gold, silver, crypto & FX work too** — quick picks in the dialog (GOLD
+  `GC=F`, SILVER `SI=F`, BITCOIN `BTC-USD`, ETHEREUM `ETH-USD`), or type any
+  symbol. Quantity = ounces / coins, avg cost per unit; market value tracks
+  live.
 - Your portfolio then shows live P/L, day P/L, allocation, and for options:
   **breakeven, max profit/loss, and a payoff diagram** with the current price
   marked.

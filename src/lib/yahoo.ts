@@ -344,7 +344,8 @@ export function normalizeSymbol(symbol: string): string {
 }
 
 export function isValidSymbol(symbol: string): boolean {
-  return /^[A-Z0-9^.\-]{1,12}$/.test(normalizeSymbol(symbol));
+  // Allow commodities (GC=F), FX pairs (USDCAD=X), indices (^VIX), crypto (BTC-USD).
+  return /^[A-Z0-9^.\-=]{1,16}$/.test(normalizeSymbol(symbol));
 }
 
 /** Parse an OCC option symbol: AAPL260814C00120000 -> { symbol, date, type, strike } */
