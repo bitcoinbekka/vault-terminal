@@ -1,0 +1,16 @@
+{
+  "name": "Vault Terminal",
+  "short_name": "Vault",
+  "description": "Decentralized Bloomberg-style market terminal — stocks, options, portfolio and alerts on Nostr.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d131b",
+  "theme_color": "#0d131b",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

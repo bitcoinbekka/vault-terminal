@@ -29,9 +29,10 @@ interface MoverRow {
   pct: number | null;
   volume: number | null;
   fromHighPct: number | null;
+  fromLowPct: number | null;
 }
 
-function MoverTable({ list, showHigh }: { list: MoverRow[]; showHigh?: boolean }) {
+function MoverTable({ list, showHigh, showLow }: { list: MoverRow[]; showHigh?: boolean; showLow?: boolean }) {
   return (
     <Table>
       <TableHeader>
@@ -43,6 +44,9 @@ function MoverTable({ list, showHigh }: { list: MoverRow[]; showHigh?: boolean }
           <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">VOL</TableHead>
           {showHigh ? (
             <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">FROM 52W HIGH</TableHead>
+          ) : null}
+          {showLow ? (
+            <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">FROM 52W LOW</TableHead>
           ) : null}
         </TableRow>
       </TableHeader>
@@ -74,11 +78,22 @@ function MoverTable({ list, showHigh }: { list: MoverRow[]; showHigh?: boolean }
                 )}
               </TableCell>
             ) : null}
+            {showLow ? (
+              <TableCell className="text-right">
+                {r.fromLowPct !== null && r.fromLowPct <= 0.5 ? (
+                  <Badge variant="outline" className="font-mono text-[10px] text-loss">AT LOW</Badge>
+                ) : (
+                  <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                    {formatPercent(r.fromLowPct)}
+                  </span>
+                )}
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
         {list.length === 0 && (
           <TableRow className="hover:bg-transparent">
-            <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+            <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
               No movers right now — feed may be offline.
             </TableCell>
           </TableRow>
@@ -113,6 +128,10 @@ export function MoversScanner() {
         typeof meta.fiftyTwoWeekHigh === 'number' && meta.fiftyTwoWeekHigh > 0
           ? (price / meta.fiftyTwoWeekHigh - 1) * 100
           : null;
+      const fromLowPct =
+        typeof meta.fiftyTwoWeekLow === 'number' && meta.fiftyTwoWeekLow > 0
+          ? (price / meta.fiftyTwoWeekLow - 1) * 100
+          : null;
       out.push({
         symbol,
         name: meta.longName ?? meta.shortName ?? '',
@@ -121,6 +140,7 @@ export function MoversScanner() {
         pct,
         volume: meta.regularMarketVolume ?? null,
         fromHighPct,
+        fromLowPct,
       });
     });
     return out;
@@ -134,6 +154,10 @@ export function MoversScanner() {
     .filter((r) => r.fromHighPct !== null && r.fromHighPct <= 0)
     .sort((a, b) => (b.fromHighPct ?? 0) - (a.fromHighPct ?? 0))
     .slice(0, 10);
+  const nearLow = rows
+    .filter((r) => r.fromLowPct !== null && r.fromLowPct >= 0)
+    .sort((a, b) => (a.fromLowPct ?? 0) - (b.fromLowPct ?? 0))
+    .slice(0, 10);
 
   return (
     <Panel
@@ -146,11 +170,12 @@ export function MoversScanner() {
       </div>
 
       <Tabs defaultValue="gainers">
-        <TabsList className="mx-3 mt-2 grid w-[calc(100%-1.5rem)] grid-cols-4">
-          <TabsTrigger value="gainers" className="font-mono text-[11px]">GAINERS</TabsTrigger>
-          <TabsTrigger value="losers" className="font-mono text-[11px]">LOSERS</TabsTrigger>
+        <TabsList className="mx-3 mt-2 grid w-[calc(100%-1.5rem)] grid-cols-5">
+          <TabsTrigger value="gainers" className="font-mono text-[10px] sm:text-[11px]">GAINERS</TabsTrigger>
+          <TabsTrigger value="losers" className="font-mono text-[10px] sm:text-[11px]">LOSERS</TabsTrigger>
           <TabsTrigger value="active" className="font-mono text-[10px] sm:text-[11px]">ACTIVE</TabsTrigger>
-          <TabsTrigger value="high" className="font-mono text-[11px]">52W HIGH</TabsTrigger>
+          <TabsTrigger value="high" className="font-mono text-[10px] sm:text-[11px]">52W HIGH</TabsTrigger>
+          <TabsTrigger value="low" className="font-mono text-[10px] sm:text-[11px]">52W LOW</TabsTrigger>
         </TabsList>
 
         {loaded === 0 ? (
@@ -173,12 +198,15 @@ export function MoversScanner() {
             <TabsContent value="high" className="pt-2">
               <MoverTable list={nearHigh} showHigh />
             </TabsContent>
+            <TabsContent value="low" className="pt-2">
+              <MoverTable list={nearLow} showLow />
+            </TabsContent>
           </>
         )}
       </Tabs>
 
       <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-        52W HIGH tab = closest to all-time-year highs · delayed quotes
+        52W HIGH = nearest yearly highs · 52W LOW = nearest yearly lows (bounce candidates) · delayed quotes
       </div>
     </Panel>
   );

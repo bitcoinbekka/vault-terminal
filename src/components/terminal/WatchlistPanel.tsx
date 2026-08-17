@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, Plus, X } from 'lucide-react';
 
@@ -18,34 +18,93 @@ import { useQuotes } from '@/hooks/useYahoo';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { usePositions } from '@/hooks/usePositions';
 import { useToast } from '@/hooks/useToast';
+import { useMomentum, momentumLabel, momentumScore } from '@/hooks/useMomentum';
 
 import { STARTER_WATCHLIST } from '@/lib/yahoo';
 import { formatCompact, formatPrice } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 import { Panel } from './Panel';
 import { PriceChange } from './PriceChange';
 import { Sparkline } from './Sparkline';
 import { AddSymbolDialog } from './AddSymbolDialog';
 
-/** The user's watchlist with live quotes. Backed by Nostr kind 30078. */
+type SortMode = 'symbol' | 'momentum';
+
+interface Row {
+  symbol: string;
+  name: string;
+  price: number | null;
+  change: number | null;
+  pct: number | null;
+  volume: number | null;
+  closes: number[];
+  pos?: { qty: number; isOption: boolean };
+  pending: boolean;
+  score: number | null;
+  label: { text: string; className: string } | null;
+}
+
+/** The user's watchlist with live quotes + momentum. Backed by Nostr kind 30078. */
 export function WatchlistPanel() {
   const { watchlist, isLoading, save, user } = useWatchlist();
   const { positions } = usePositions();
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>('symbol');
 
   const display = user ? watchlist : watchlist.length > 0 ? watchlist : STARTER_WATCHLIST;
   const quotes = useQuotes(display);
+  const { infos } = useMomentum(display);
 
-  const positionMap = new Map<string, { qty: number; isOption: boolean }>();
-  for (const p of positions) {
-    const cur = positionMap.get(p.symbol);
-    positionMap.set(p.symbol, {
-      qty: (cur?.qty ?? 0) + (p.contract ? 0 : p.quantity),
-      isOption: Boolean(cur?.isOption) || Boolean(p.contract),
+  const positionMap = useMemo(() => {
+    const map = new Map<string, { qty: number; isOption: boolean }>();
+    for (const p of positions) {
+      const cur = map.get(p.symbol);
+      map.set(p.symbol, {
+        qty: (cur?.qty ?? 0) + (p.contract ? 0 : p.quantity),
+        isOption: Boolean(cur?.isOption) || Boolean(p.contract),
+      });
+    }
+    return map;
+  }, [positions]);
+
+  const rows: Row[] = useMemo(() => {
+    const infoBySymbol = new Map(infos.map((i) => [i.symbol, i]));
+    return display.map((symbol, i) => {
+      const q = quotes[i];
+      const meta = q.data?.meta;
+      const prev = meta?.chartPreviousClose ?? meta?.previousClose;
+      const price = meta?.regularMarketPrice ?? null;
+      const change = price !== null && typeof prev === 'number' ? price - prev : null;
+      const pct = change !== null && prev ? (change / prev) * 100 : null;
+      const score = momentumScore(infoBySymbol.get(symbol), pct);
+      return {
+        symbol,
+        name: meta?.longName ?? meta?.shortName ?? '',
+        price,
+        change,
+        pct,
+        volume: meta?.regularMarketVolume ?? null,
+        closes: (q.data?.candles ?? []).map((c) => c.c),
+        pos: positionMap.get(symbol),
+        pending: q.isPending && !q.data,
+        score,
+        label: momentumLabel(score),
+      };
     });
-  }
+  }, [display, quotes, infos, positionMap]);
+
+  const sorted = useMemo(() => {
+    const arr = [...rows];
+    if (sortMode === 'momentum') {
+      arr.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    } else {
+      arr.sort((a, b) => a.symbol.localeCompare(b.symbol));
+    }
+    return arr;
+  }, [rows, sortMode]);
 
   const remove = async (symbol: string) => {
     setRemoving(symbol);
@@ -64,11 +123,27 @@ export function WatchlistPanel() {
       title={user ? 'WATCHLIST // YOUR STOCKS' : 'WATCHLIST // PREVIEW'}
       id="watchlist"
       right={
-        user ? (
-          <Button size="sm" variant="outline" className="h-7 gap-1 px-2 font-mono text-[11px]" onClick={() => setAddOpen(true)}>
-            <Plus className="size-3.5" /> ADD
-          </Button>
-        ) : undefined
+        <div className="flex items-center gap-1.5">
+          <div className="flex rounded-md border border-border p-0.5">
+            {(['symbol', 'momentum'] as SortMode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setSortMode(m)}
+                className={cn(
+                  'rounded px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wider transition-colors',
+                  sortMode === m ? 'bg-signal/15 text-signal' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {m === 'symbol' ? 'A-Z' : 'MOM'}
+              </button>
+            ))}
+          </div>
+          {user ? (
+            <Button size="sm" variant="outline" className="h-7 gap-1 px-2 font-mono text-[11px]" onClick={() => setAddOpen(true)}>
+              <Plus className="size-3.5" /> ADD
+            </Button>
+          ) : null}
+        </div>
       }
     >
       {!user && (
@@ -87,25 +162,17 @@ export function WatchlistPanel() {
             <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">LAST</TableHead>
             <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">CHG</TableHead>
             <TableHead className="text-right font-mono text-[10px] tracking-wider text-muted-foreground">VOL</TableHead>
+            <TableHead className="hidden text-right font-mono text-[10px] tracking-wider text-muted-foreground md:table-cell">MOM</TableHead>
             <TableHead className="hidden font-mono text-[10px] tracking-wider text-muted-foreground md:table-cell">1D</TableHead>
             <TableHead className="w-10" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {quotes.map((q, i) => {
-            const symbol = display[i];
-            if (!symbol) return null;
-            const meta = q.data?.meta;
-            const prev = meta?.chartPreviousClose ?? meta?.previousClose;
-            const price = meta?.regularMarketPrice;
-            const change = price !== undefined && typeof prev === 'number' ? price - prev : null;
-            const pct = change !== null && prev ? (change / prev) * 100 : null;
-            const pos = positionMap.get(symbol);
-
-            if (q.isPending && !q.data) {
+          {sorted.map((r) => {
+            if (r.pending) {
               return (
-                <TableRow key={`${symbol}-loading`} className="hover:bg-transparent">
-                  <TableCell colSpan={6}>
+                <TableRow key={`${r.symbol}-loading`} className="hover:bg-transparent">
+                  <TableCell colSpan={7}>
                     <div className="flex items-center gap-3 py-1">
                       <Skeleton className="h-4 w-16" />
                       <Skeleton className="h-4 w-20" />
@@ -114,33 +181,42 @@ export function WatchlistPanel() {
                 </TableRow>
               );
             }
-
             return (
-              <TableRow key={symbol} className="group">
+              <TableRow key={r.symbol} className="group">
                 <TableCell className="max-w-[180px]">
-                  <Link to={`/stock/${symbol}`} className="flex flex-col">
+                  <Link to={`/stock/${r.symbol}`} className="flex flex-col">
                     <span className="flex items-center gap-1.5 font-mono text-sm font-bold group-hover:text-signal">
-                      {symbol}
-                      {pos?.isOption ? (
+                      {r.symbol}
+                      {r.pos?.isOption ? (
                         <span className="rounded-sm bg-signal/15 px-1 font-mono text-[9px] font-bold text-signal" title="Has option positions">OPT</span>
-                      ) : pos ? (
-                        <span className="rounded-sm bg-muted px-1 font-mono text-[9px] font-bold text-muted-foreground" title={`Position: ${pos.qty} shares`}>{pos.qty} SH</span>
+                      ) : r.pos ? (
+                        <span className="rounded-sm bg-muted px-1 font-mono text-[9px] font-bold text-muted-foreground" title={`Position: ${r.pos.qty} shares`}>{r.pos.qty} SH</span>
                       ) : null}
                     </span>
-                    <span className="truncate text-[11px] text-muted-foreground">{meta?.longName ?? meta?.shortName}</span>
+                    <span className="truncate text-[11px] text-muted-foreground">{r.name}</span>
                   </Link>
                 </TableCell>
                 <TableCell className="text-right font-mono text-sm font-semibold tabular-nums">
-                  {formatPrice(price)}
+                  {formatPrice(r.price)}
                 </TableCell>
                 <TableCell className="text-right">
-                  <PriceChange change={change} percent={pct} compact />
+                  <PriceChange change={r.change} percent={r.pct} compact />
                 </TableCell>
                 <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                  {formatCompact(meta?.regularMarketVolume)}
+                  {formatCompact(r.volume)}
+                </TableCell>
+                <TableCell className="hidden text-right md:table-cell">
+                  {r.label ? (
+                    <span className={cn('font-mono text-[10px] font-bold tracking-wider', r.label.className)} title={`Momentum ${r.score}/100`}>
+                      {r.label.text}
+                      <span className="ml-1 text-muted-foreground">{r.score}</span>
+                    </span>
+                  ) : (
+                    <span className="font-mono text-[10px] text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
-                  <Sparkline data={(q.data?.candles ?? []).map((c) => c.c)} positive={(pct ?? 0) >= 0} width={88} height={24} />
+                  <Sparkline data={r.closes} positive={(r.pct ?? 0) >= 0} width={72} height={20} />
                 </TableCell>
                 <TableCell className="text-right">
                   {user ? (
@@ -148,11 +224,11 @@ export function WatchlistPanel() {
                       size="icon"
                       variant="ghost"
                       className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-loss group-hover:opacity-100"
-                      aria-label={`Remove ${symbol}`}
-                      onClick={() => remove(symbol)}
-                      disabled={removing === symbol}
+                      aria-label={`Remove ${r.symbol}`}
+                      onClick={() => remove(r.symbol)}
+                      disabled={removing === r.symbol}
                     >
-                      {removing === symbol ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+                      {removing === r.symbol ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
                     </Button>
                   ) : null}
                 </TableCell>
@@ -162,7 +238,7 @@ export function WatchlistPanel() {
 
           {!isLoading && display.length === 0 && (
             <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={6}>
+              <TableCell colSpan={7}>
                 <div className="px-4 py-10 text-center">
                   <p className="mb-3 text-sm text-muted-foreground">
                     No symbols yet. Add tickers you own or follow to build your terminal.
@@ -182,7 +258,8 @@ export function WatchlistPanel() {
       </Table>
 
       <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-        Delayed quotes · {user ? 'Saved to Nostr kind 30078 — follows your npub' : 'Log in to persist this list on Nostr'}
+        Momentum = SMA20/50 trend + RSI + day strength (0–100) · sort A-Z or MOM · delayed quotes ·{' '}
+        {user ? 'saved to Nostr kind 30078 — follows your npub' : 'log in to persist this list on Nostr'}
       </div>
 
       <AddSymbolDialog open={addOpen} onOpenChange={setAddOpen} />
