@@ -73,6 +73,20 @@ sudo systemctl status nginx
 
 Should show `Active: active (running)`.
 
+> **Gotcha — port 80 already in use:** if `nginx` fails with
+> `bind() to 0.0.0.0:80 failed`, something else is on port 80 (often Apache on
+> VPS images). Find it, stop it, then start nginx:
+>
+> ```bash
+> sudo ss -tlnp | grep -E ':80\b'
+> ```
+> ```bash
+> sudo systemctl stop apache2 && sudo systemctl disable apache2
+> ```
+> ```bash
+> sudo systemctl start nginx
+> ```
+
 ---
 
 ## Step 3 — Get the code
