@@ -28,6 +28,7 @@ import { Panel } from './Panel';
 import { PriceChange } from './PriceChange';
 import { Sparkline } from './Sparkline';
 import { AddSymbolDialog } from './AddSymbolDialog';
+import { Mask } from './Mask';
 
 type SortMode = 'symbol' | 'momentum';
 
@@ -195,7 +196,9 @@ export function WatchlistPanel() {
                       {r.pos?.isOption ? (
                         <span className="rounded-sm bg-signal/15 px-1 font-mono text-[9px] font-bold text-signal" title="Has option positions">OPT</span>
                       ) : r.pos ? (
-                        <span className="rounded-sm bg-muted px-1 font-mono text-[9px] font-bold text-muted-foreground" title={`Position: ${r.pos.qty} shares`}>{r.pos.qty} SH</span>
+                        <span className="rounded-sm bg-muted px-1 font-mono text-[9px] font-bold text-muted-foreground" title={`Position: ${r.pos.qty} shares`}>
+                          <Mask>{r.pos.qty}</Mask> SH
+                        </span>
                       ) : null}
                     </span>
                     <span className="truncate text-[11px] text-muted-foreground">{r.name}</span>

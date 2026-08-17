@@ -1,6 +1,7 @@
 import type { Position } from '@/hooks/usePositions';
 import { optionBreakeven, optionMaxLoss, optionMaxProfit, payoffAtExpiry } from '@/lib/options';
 import { formatExpiration, formatPrice } from '@/lib/format';
+import { Mask } from './Mask';
 
 interface PayoffChartProps {
   type: 'C' | 'P';
@@ -95,17 +96,17 @@ export function PayoffCard({ position, currentPrice }: PayoffCardProps) {
       </div>
       <div className="mt-1 grid grid-cols-3 gap-1 font-mono text-[10px] text-muted-foreground">
         <div>
-          BE <span className="font-semibold text-foreground">{formatPrice(breakeven)}</span>
+          BE <span className="font-semibold text-foreground"><Mask>{formatPrice(breakeven)}</Mask></span>
         </div>
         <div>
-          MAX L <span className="font-semibold text-loss">{formatPrice(maxLoss)}</span>
+          MAX L <span className="font-semibold text-loss"><Mask>{formatPrice(maxLoss)}</Mask></span>
         </div>
         <div>
           MAX P{' '}
           {maxProfit === null ? (
             <span className="font-semibold text-gain">∞</span>
           ) : (
-            <span className="font-semibold text-gain">{formatPrice(maxProfit)}</span>
+            <span className="font-semibold text-gain"><Mask>{formatPrice(maxProfit)}</Mask></span>
           )}
         </div>
       </div>

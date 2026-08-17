@@ -25,6 +25,8 @@ import { cn } from '@/lib/utils';
 import { Panel } from './Panel';
 import { AddPositionDialog } from './AddPositionDialog';
 import { PayoffCard } from './OptionPayoff';
+import { Mask } from './Mask';
+import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 
 interface Row {
   key: string;
@@ -53,6 +55,7 @@ export function PortfolioPanel() {
   const { positions, save, user } = usePositions();
   const { stats: journal } = useTrades();
   const { toast } = useToast();
+  const { privacy } = usePrivacyMode();
   const [addOpen, setAddOpen] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
 
@@ -261,26 +264,28 @@ export function PortfolioPanel() {
               <div>
                 <div className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">DAY P/L (USD)</div>
                 <div className={cn('font-mono text-base font-bold tabular-nums', colorForChange(totals.dayPnl))}>
-                  {formatSigned(totals.dayPnl)}
+                  <Mask>{formatSigned(totals.dayPnl)}</Mask>
                 </div>
               </div>
               <div>
                 <div className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">UNREALIZED (USD)</div>
                 <div className={cn('font-mono text-base font-bold tabular-nums', colorForChange(unrealized))}>
-                  {formatSigned(unrealized)}
-                  {unrealizedPct !== null ? <span className="ml-1 text-[11px] opacity-70">({unrealizedPct.toFixed(1)}%)</span> : null}
+                  <Mask>
+                    {formatSigned(unrealized)}
+                    {unrealizedPct !== null ? <span className="ml-1 text-[11px] opacity-70">({unrealizedPct.toFixed(1)}%)</span> : null}
+                  </Mask>
                 </div>
               </div>
               <div>
                 <div className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">REALIZED (JOURNAL)</div>
                 <div className={cn('font-mono text-base font-bold tabular-nums', colorForChange(journal.netRealizedPnl))}>
-                  {formatSigned(journal.netRealizedPnl)}
+                  <Mask>{formatSigned(journal.netRealizedPnl)}</Mask>
                 </div>
               </div>
               <div>
                 <div className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground">NET P/L (USD)</div>
                 <div className={cn('font-mono text-base font-bold tabular-nums', colorForChange(netPnl))}>
-                  {formatSigned(netPnl)}
+                  <Mask>{formatSigned(netPnl)}</Mask>
                 </div>
               </div>
             </div>
@@ -289,14 +294,18 @@ export function PortfolioPanel() {
               <div className="mt-3">
                 <div className="flex h-2 w-full overflow-hidden rounded-full">
                   {alloc.map((s) => (
-                    <div key={s.label} style={{ width: `${s.pct}%`, background: s.color }} title={`${s.label} ${s.pct.toFixed(1)}%`} />
+                    <div
+                      key={s.label}
+                      style={{ width: `${s.pct}%`, background: s.color }}
+                      title={privacy ? undefined : `${s.label} ${s.pct.toFixed(1)}%`}
+                    />
                   ))}
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
                   {alloc.map((s) => (
                     <span key={s.label} className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
                       <span className="inline-block size-2 rounded-sm" style={{ background: s.color }} />
-                      {s.label} {s.pct.toFixed(0)}%
+                      {s.label} <Mask>{s.pct.toFixed(0)}%</Mask>
                     </span>
                   ))}
                 </div>
@@ -308,12 +317,12 @@ export function PortfolioPanel() {
                 <span className="flex items-center gap-1.5">
                   <span className="font-mono text-[10px] font-bold text-muted-foreground">BEST</span>
                   <span className="font-mono font-semibold">{best.winner.label.split(' ')[0]}</span>
-                  <span className={cn('font-mono tabular-nums', colorForChange(best.winner.usdPnl))}>{formatSigned(best.winner.usdPnl)}</span>
+                  <span className={cn('font-mono tabular-nums', colorForChange(best.winner.usdPnl))}><Mask>{formatSigned(best.winner.usdPnl)}</Mask></span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="font-mono text-[10px] font-bold text-muted-foreground">WORST</span>
                   <span className="font-mono font-semibold">{best.loser.label.split(' ')[0]}</span>
-                  <span className={cn('font-mono tabular-nums', colorForChange(best.loser.usdPnl))}>{formatSigned(best.loser.usdPnl)}</span>
+                  <span className={cn('font-mono tabular-nums', colorForChange(best.loser.usdPnl))}><Mask>{formatSigned(best.loser.usdPnl)}</Mask></span>
                 </span>
               </div>
             ) : null}
@@ -343,8 +352,8 @@ export function PortfolioPanel() {
                         <span className="truncate text-[11px] text-muted-foreground">{r.sub || '—'}</span>
                       </span>
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm tabular-nums">{r.qty}</TableCell>
-                    <TableCell className="hidden text-right font-mono text-xs tabular-nums text-muted-foreground xl:table-cell">{formatPrice(r.avgCost)}</TableCell>
+                    <TableCell className="text-right font-mono text-sm tabular-nums"><Mask>{r.qty}</Mask></TableCell>
+                    <TableCell className="hidden text-right font-mono text-xs tabular-nums text-muted-foreground xl:table-cell"><Mask>{formatPrice(r.avgCost)}</Mask></TableCell>
                     <TableCell className="text-right">
                       <span className="font-mono text-sm tabular-nums">
                         {formatPrice(r.last)}
@@ -356,28 +365,34 @@ export function PortfolioPanel() {
                     <TableCell className="text-right">
                       <span className="flex flex-col items-end">
                         <span className="font-mono text-sm tabular-nums">
-                          {formatPrice(r.value)}
-                          {r.currency !== 'USD' ? (
-                            <span className="ml-1 rounded-sm bg-muted px-1 font-mono text-[9px] font-bold text-muted-foreground">{r.currency}</span>
-                          ) : null}
+                          <Mask>
+                            {formatPrice(r.value)}
+                            {r.currency !== 'USD' ? (
+                              <span className="ml-1 rounded-sm bg-muted px-1 font-mono text-[9px] font-bold text-muted-foreground">{r.currency}</span>
+                            ) : null}
+                          </Mask>
                         </span>
                         {r.currency !== 'USD' && r.usdValue !== null ? (
-                          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">≈ ${r.usdValue.toFixed(0)} USD</span>
+                          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                            <Mask>≈ ${r.usdValue.toFixed(0)} USD</Mask>
+                          </span>
                         ) : null}
                       </span>
                     </TableCell>
                     <TableCell className={cn('hidden text-right font-mono text-sm tabular-nums xl:table-cell', colorForChange(r.dayPnl))}>
-                      {formatSigned(r.dayPnl)}
+                      <Mask>{formatSigned(r.dayPnl)}</Mask>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="flex flex-col items-end">
                         <span className={cn('font-mono text-sm font-semibold tabular-nums', colorForChange(r.pnl))}>
-                          {formatSigned(r.pnl)}
-                          {pnlPct !== null ? <span className="ml-1 text-[11px] opacity-70">({pnlPct.toFixed(1)}%)</span> : null}
+                          <Mask>
+                            {formatSigned(r.pnl)}
+                            {pnlPct !== null ? <span className="ml-1 text-[11px] opacity-70">({pnlPct.toFixed(1)}%)</span> : null}
+                          </Mask>
                         </span>
                         {r.currency !== 'USD' && r.usdPnl !== null ? (
                           <span className={cn('font-mono text-[10px] tabular-nums', colorForChange(r.usdPnl))}>
-                            ≈ {formatSigned(r.usdPnl)} USD
+                            <Mask>≈ {formatSigned(r.usdPnl)} USD</Mask>
                           </span>
                         ) : null}
                       </span>
@@ -403,14 +418,16 @@ export function PortfolioPanel() {
                 <TableCell colSpan={4} className="font-mono text-xs font-bold tracking-wider text-foreground">
                   TOTAL (USD)
                 </TableCell>
-                <TableCell className="text-right font-mono text-sm font-bold tabular-nums">{formatPrice(totals.value)}</TableCell>
+                <TableCell className="text-right font-mono text-sm font-bold tabular-nums"><Mask>{formatPrice(totals.value)}</Mask></TableCell>
                 <TableCell className={cn('hidden text-right font-mono text-sm font-bold tabular-nums xl:table-cell', colorForChange(totals.dayPnl))}>
-                  {formatSigned(totals.dayPnl)}
+                  <Mask>{formatSigned(totals.dayPnl)}</Mask>
                 </TableCell>
                 <TableCell className="text-right">
                   <span className={cn('font-mono text-sm font-bold tabular-nums', colorForChange(unrealized))}>
-                    {formatSigned(unrealized)}
-                    {unrealizedPct !== null ? <span className="ml-1 text-[11px] opacity-70">({unrealizedPct.toFixed(1)}%)</span> : null}
+                    <Mask>
+                      {formatSigned(unrealized)}
+                      {unrealizedPct !== null ? <span className="ml-1 text-[11px] opacity-70">({unrealizedPct.toFixed(1)}%)</span> : null}
+                    </Mask>
                   </span>
                 </TableCell>
                 <TableCell />

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet } from 'react-router-dom';
-import { Activity } from 'lucide-react';
+import { Activity, Eye, EyeOff } from 'lucide-react';
 
 import { LoginArea } from '@/components/auth/LoginArea';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 import { TickerTape } from './TickerTape';
 import { AlertBell } from './AlertBell';
 import { AlertWatcher } from './AlertWatcher';
@@ -53,6 +55,23 @@ function MarketClock() {
         {isOpen ? 'OPEN' : 'CLOSED'}
       </span>
     </div>
+  );
+}
+
+/** Privacy mode toggle — hides quantities & dollar amounts. */
+function PrivacyToggle() {
+  const { privacy, toggle } = usePrivacyMode();
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={toggle}
+      aria-label={privacy ? 'Disable privacy mode' : 'Enable privacy mode'}
+      title={privacy ? 'Privacy mode ON — amounts hidden' : 'Privacy mode OFF'}
+      className={cn('text-muted-foreground hover:text-foreground', privacy && 'text-signal')}
+    >
+      {privacy ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+    </Button>
   );
 }
 
@@ -107,6 +126,7 @@ export function TerminalLayout() {
 
           <div className="ml-auto flex items-center gap-3">
             <MarketClock />
+            <PrivacyToggle />
             <AlertBell />
             <LoginArea className="max-w-56" />
           </div>
