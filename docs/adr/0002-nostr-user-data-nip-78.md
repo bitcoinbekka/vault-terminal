@@ -16,20 +16,22 @@ Store all user state as **NIP-78 application-specific data**, event kind
 
 | Dataset | `d` tag | Content |
 | --- | --- | --- |
-| Watchlist | `vault:watchlist` | `{version, symbols[]}` + `t` tags per symbol (relay-queryable) |
+| Watchlist | `vault:watchlist` | `{version, symbols[]}` |
 | Positions | `vault:positions` | `{version, positions[]}` (equity + OCC option contracts) |
 | Price alerts | `vault:alerts` | `{version, alerts[]}` (direction/value/firedAt) |
 | Trade journal | `vault:trades` | `{version, trades[]}` (buy/sell, price, fees, note) |
+| Hourly snapshots | `vault:snapshot:<SYMBOL>:<hour>` | `{version, symbol, price, …}` (written by the VPS pusher) |
+| SEC fundamentals | `vault:fundamentals:<SYMBOL>` | `{version, years[], …}` (written by the VPS SEC fetcher) |
 
 Rules enforced everywhere:
 
 - Queries always constrain `authors: [user.pubkey]` — the `d` tag alone is not
   a trust boundary (Nostr is permissionless).
-- **All four datasets are encrypted with NIP-44 to the owner's own pubkey**
+- **All user datasets are encrypted with NIP-44 to the owner's own pubkey**
   (the same cipher NIP-17 uses for gift-wrapped DMs). The event `content` is
   ciphertext, marked with an `enc` tag, so relays and other users cannot read
-  the symbols, positions, alerts or trades. The server-side alert watcher can
-  decrypt because it holds the owner's nsec. See `NIP.md`.
+  the symbols, positions, alerts or trades. Server-side services decrypt
+  because they hold the owner's nsec on the owner's VPS. See `NIP.md`.
 - Reads go through the default relay pool; writes via `useNostrPublish`
   (auto-adds the NIP-89 `client` tag).
 - Mutations are optimistic in TanStack Query, with rollback on publish failure.

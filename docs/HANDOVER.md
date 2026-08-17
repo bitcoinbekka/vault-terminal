@@ -88,24 +88,31 @@ sandbox; type-checking must be done carefully by review).
 
 ```
 src/
-  pages/            Index (dashboard), StockPage, JournalPage, NIP19Page, NotFound
+  pages/            Index (dashboard), StockPage, JournalPage, ScreenerPage (EQS),
+                    SizerPage, FxPage, NIP19Page, NotFound
   components/
-    terminal/       TerminalLayout, TickerTape, Panels (Watchlist, Portfolio,
-                    Movers, Trending, SectorRotation, OptionsFlow, MarketRegime,
-                    MarketIndices), CandleChart, Sparkline, OptionPayoff,
+    terminal/       TerminalLayout, TickerTape, CommandBar (GO bar), Panels
+                    (Watchlist, Portfolio, Movers, Trending, SectorRotation,
+                    OptionsFlow, MarketRegime, MarketIndices), CandleChart,
+                    IndicatorToolbar, Sparkline, OptionPayoff, SnapshotsPanel,
+                    SupplyChainPanel, FundamentalsPanel,
                     dialogs (AddSymbol/Position/Trade/Alert), AlertBell, AlertWatcher
     nostr/          ProfileView, EventView (NIP-19 route rendering)
     auth/           LoginArea, AccountSwitcher (template)
     ui/             shadcn/ui primitives
   hooks/            useYahoo (chart/search/trending/options/quotes/chains),
                     useWatchlist, usePositions, useAlerts, useTrades (Nostr data),
+                    useSnapshots, useFundamentals, useSupplyChain, useFx,
                     useCurrentUser, useNostrPublish, useAuthor, ...
-  lib/              yahoo.ts (data layer + CORS fetch), indicators.ts, journal.ts,
-                    options.ts, format.ts, sanitize.ts, marketUniverse.ts, notify.ts
+  lib/              yahoo.ts (data layer + CORS fetch), fx.ts, commands.ts,
+                    indicators.ts, journal.ts, options.ts, nostrCrypto.ts,
+                    format.ts, sanitize.ts, marketUniverse.ts, notify.ts
   contexts/ AppContext.tsx, components/AppProvider.tsx (theme + NIP-65 relays)
-server/             alerts-watcher.mjs (24/7 watcher), .env.example, vault-alerts.service
-deploy/             nginx-vault.conf (same-origin reverse proxy)
-docs/               adr/ (0001-0005), HANDOVER.md (this file)
+server/             alerts-watcher.mjs, market-snapshot.mjs, sec-fundamentals.mjs,
+                    .env.example, vault-alerts.service
+deploy/             nginx-vault.conf (80/443 + same-origin proxy),
+                    nginx-vault-internal.conf (8081 + Caddy-fronted variant)
+docs/               adr/ (0001-0006), HANDOVER.md, DEPLOY.md, INSTALL.md, USER_GUIDE.md
 NIP.md              Nostr storage schema (authoritative)
 ```
 
@@ -131,13 +138,17 @@ Browser (React)
  └─ Analytics:   pure functions over cached candles/trades/chains
       indicators.ts · journal.ts (FIFO) · options.ts (expected move/payoff)
 
-VPS (optional, 24/7)
- └─ server/alerts-watcher.mjs: reads alerts from Nostr → polls Yahoo directly
-      → NIP-17 encrypted DM + webhook → publishes firedAt
+VPS (optional, 24/7 — see ADR 0006)
+ ├─ alerts-watcher.mjs:   reads encrypted alerts → polls Yahoo → NIP-17 DM
+ │                        + webhook → publishes firedAt
+ ├─ market-snapshot.mjs:  watchlist → hourly encrypted snapshots (cron)
+ └─ sec-fundamentals.mjs: watchlist (US) → SEC EDGAR → encrypted reports (cron)
+    (planned) analyzer.mjs: watches request events → LLM (OpenAI-compatible)
+                        → encrypted analysis reports
 ```
 
 **Key principle:** market data is a *view*; Nostr is the *source of truth* for
-everything the user owns.
+everything the user owns — including the data the VPS services write.
 
 ---
 
@@ -159,14 +170,22 @@ graceful empty/error states. The Nostr-backed features (login, watchlist,
 positions, alerts, journal) keep working regardless. Self-hosting with
 `VITE_MARKET_BASE` removes the dependency entirely (see ADR 0005).
 
-**Endpoints in use:**
+**Endpoints in use (browser, via the layered fetch):**
 
 - `query1.finance.yahoo.com/v8/finance/chart/{sym}?range&interval` — quotes + OHLCV
-- `…/v1/finance/search?q=` — symbol search + news
+- `…/v1/finance/search?q=` — symbol search + news (+ supply-chain queries)
 - `…/v1/finance/trending/US` — trending symbols
+- `…/v8/finance/chart/XXXYYY=X` — FX pairs (e.g. `USDCAD=X`), via `lib/fx.ts`
 - `cdn.cboe.com/api/global/delayed_quotes/options/{sym}.json` — options chains
   (OCC symbols, greeks, vol/OI). ~1.5 MB per symbol — **lazy-loaded** (only
   when the Options tab opens or the flow scanner runs).
+
+**Endpoints used server-side only (no CORS matters there):**
+
+- `data.sec.gov/api/xbrl/companyfacts/CIK{…}.json` + `…/company_tickers.json` —
+  SEC EDGAR fundamentals (requires a descriptive User-Agent; rate-limit ~10/s).
+- Note: Wikipedia's API is **CORS-blocked** in browsers, which is why the
+  supply-chain panel is news-based rather than Wikipedia-based.
 
 ---
 
@@ -181,6 +200,8 @@ See **`NIP.md`** — it is the authoritative schema reference. Summary
 | Positions | `vault:positions` | equity + OCC option contracts, encrypted |
 | Alerts | `vault:alerts` | above/below/pctUp/pctDown; `firedAt`; encrypted |
 | Trades | `vault:trades` | buy/sell, FIFO accounting; encrypted |
+| Snapshots | `vault:snapshot:<SYMBOL>:<hour>` | hourly history, encrypted, `t`-tagged |
+| Fundamentals | `vault:fundamentals:<SYMBOL>` | SEC 10-K figures, encrypted, `t`-tagged |
 
 Encryption uses the user's signer (`user.signer.nip44.encrypt/decrypt`,
 NIP-44 = the cipher behind NIP-17 DMs); see `src/lib/nostrCrypto.ts`. The
@@ -198,6 +219,9 @@ list into `AppContext`). Default relays: `src/lib/appRelays.ts`.
 /                      dashboard (inside TerminalLayout)
 /stock/:symbol         stock page
 /journal               trade journal
+/screener              EQS equity screener
+/sizer                 position sizing calculator
+/fx                    currency converter
 /:nip19                NIP-19 identifiers (npub/nprofile/note/nevent/naddr)
 *                      NotFound
 ```
@@ -208,17 +232,25 @@ addressable lookups by `authors` (see the `nip19-routing` skill).
 
 ---
 
-## 9. Alerts architecture (two layers)
+## 9. Companion services (alerts + snapshots + fundamentals)
 
-1. **Client** (`AlertWatcher` in the layout): polls every 60s while the tab is
-   open. Uses shared query keys (`['yahoo','chart',sym,'1D']`) so it reuses
-   quotes already fetched by the watchlist/tape. Browser notification + beep +
-   toast; marks `firedAt`.
-2. **Server** (`server/alerts-watcher.mjs`): reads alerts from relays, polls
-   Yahoo directly, and on trigger sends a **NIP-17 encrypted DM** + optional
-   webhook + publishes `firedAt`. Run with `--once` to test, `--dry-run` to
-   preview. Configure via env (see `server/.env.example`); run 24/7 with
-   `server/vault-alerts.service`.
+The browser handles the app; the VPS runs background services over the same
+Nostr events (see **ADR 0006**):
+
+1. **Client alerts** (`AlertWatcher` in the layout): polls every 60s while the
+   tab is open — browser notification + beep + toast; marks `firedAt`.
+2. **Server watcher** (`server/alerts-watcher.mjs`): reads alerts from relays,
+   polls Yahoo directly, sends a **NIP-17 encrypted DM** + optional webhook +
+   publishes `firedAt`. Run `--once` to test, `--dry-run` to preview. 24/7 via
+   `server/vault-alerts.service` (env: `/etc/vault-alerts.env`).
+3. **Snapshot pusher** (`server/market-snapshot.mjs`) — hourly, cron-friendly.
+4. **SEC fetcher** (`server/sec-fundamentals.mjs`) — daily, cron-friendly.
+5. **Analyzer** (planned, Phase 2) — model-agnostic LLM over
+   OpenAI-compatible endpoints (DeepSeek / Ollama).
+
+All four share `VAULT_NSEC`/`VAULT_RELAYS` and the encrypted-events pattern.
+**Cron jobs must source the env file first** — they don't read the systemd
+`EnvironmentFile`: `cd /var/www/vault && set -a && . /etc/vault-alerts.env && set +a && node server/…`
 
 ---
 
@@ -228,11 +260,20 @@ addressable lookups by `authors` (see the `nip19-routing` skill).
 `build_project` → static files in `dist/`. No configuration needed.
 
 ### Self-hosted VPS (recommended for independence)
-1. `npm ci && VITE_MARKET_BASE=https://your.domain npm run build`
-2. Serve `dist/` with `deploy/nginx-vault.conf` (also reverse-proxies
-   `/yahoo/` and `/cboe/` same-origin → **no CORS, no third-party proxy**).
-3. Enable HTTPS (certbot) — required for wss relays.
-4. Optional 24/7 alerts: configure `VAULT_NSEC` and install the systemd unit.
+Full step-by-step in **`docs/DEPLOY.md`** and the beginner guide in
+**`docs/INSTALL.md`**. The two supported layouts:
+
+- **Standard (nginx owns 80/443):** `npm ci && VITE_MARKET_BASE=https://your.domain npm run build`
+  → serve `dist/` with `deploy/nginx-vault.conf` → certbot for TLS.
+- **Caddy already owns 80/443** (e.g. a Docker Caddy container): use
+  `deploy/nginx-vault-internal.conf` (nginx on **0.0.0.0:8081**) and let Caddy
+  reverse-proxy `your.domain → <docker-bridge-gateway>:8081` — Caddy does TLS,
+  no certbot. Get the upstream IP from `docker network inspect`, not a guess.
+- Either way: market data flows same-origin (**no CORS, no third-party proxy**).
+- Optional services: `VAULT_NSEC` + systemd for the watcher; cron for
+  snapshots + SEC fundamentals (sourcing `/etc/vault-alerts.env`).
+
+Updates: `git pull && VITE_MARKET_BASE=… npm run build && sudo systemctl reload nginx`
 
 ---
 
@@ -258,9 +299,19 @@ addressable lookups by `authors` (see the `nip19-routing` skill).
   watcher.
 - **Options chains are heavy** (~1.5 MB each) — lazy-loading is intentional;
   don't fetch them eagerly on the dashboard.
-- **Data is public on Nostr** — `content` is NIP-44 encrypted to the owner, so
-  holdings are private-by-default; legacy plaintext events remain readable.
-  Signers must support `nip44.encrypt/decrypt`.
+- **Data is private on Nostr** — `content` is NIP-44 encrypted to the owner;
+  legacy plaintext events remain readable. Signers must support
+  `nip44.encrypt/decrypt`.
+- **Deployment gotchas** (all learned the hard way on a live VPS):
+  - Port 80/443 owned by another process (Docker/Caddy) → use the internal
+    config, don't fight it.
+  - A Docker-bridge container can't reach the host's `127.0.0.1` — nginx must
+    listen on all interfaces and Caddy must use the bridge **gateway** IP.
+  - `systemctl reload` can silently keep old sockets — use `restart` when a
+    `listen` change doesn't take.
+  - Cron jobs don't read the systemd env file — source it (`set -a && . …`).
+  - `systemctl status`/`journalctl` open a pager — press `q` (or add
+    `--no-pager`).
 - The project directory is `/projects/vault` (do not confuse with any
   `untitled` stub dirs that may exist in the workspace).
 - Platform sandbox has **no Node runtime** — `tsc`/`eslint`/`vitest` can't run
@@ -273,16 +324,20 @@ addressable lookups by `authors` (see the `nip19-routing` skill).
 
 ## 13. Roadmap / suggested next steps
 
+- [ ] **Phase 2 — AI filing analyzer** (`server/analyzer.mjs`): model-agnostic
+      LLM (DeepSeek API or local Ollama via `ANALYZER_BASE_URL`), triggered by
+      Nostr request events; upload PDFs to Blossom; encrypted analysis reports
+      on the FUNDAMENTALS tab. Covers Canadian (SEDAR) via manual upload.
 - [ ] Server-side **options-flow alerts** (watcher scans chains for vol/OI spikes → DM).
-- [ ] Position sizing calculator (risk % × account / stop distance).
-- [ ] Watchlist momentum score (rank tickers by trend + RSI + relative strength).
-- [ ] 52W LOW tab in the movers scanner.
-- [ ] Deploy to a public URL; add `og:image` once a URL exists; optionally
-      publish as a NIP-89 app.
+- [ ] Watchlist **momentum score** (rank tickers by trend + RSI + relative strength).
+- [ ] **52W LOW** tab in the movers scanner.
+- [ ] `og:image` social cards now that a public URL exists; publish as a
+      **NIP-89 app**; "Edit with Shakespeare" badge.
 - [ ] Consider a paid feed (e.g. Finnhub) behind the same-origin proxy for
-      real-time/fundamentals.
+      real-time quotes.
 
 ---
 
-*Related docs: `NIP.md` (schema) · `docs/adr/0001–0005` (decisions) ·
-`.env.example` + `deploy/nginx-vault.conf` + `server/.env.example` (ops).*
+*Related docs: `NIP.md` (schema) · `docs/adr/0001–0006` (decisions) ·
+`docs/DEPLOY.md` (admin) · `docs/INSTALL.md` (beginner install) ·
+`docs/USER_GUIDE.md` (end users) · `.env.example` + `deploy/*` + `server/*` (ops).*

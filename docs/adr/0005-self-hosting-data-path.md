@@ -24,10 +24,17 @@ different hosts:
 Supporting files:
 
 - `deploy/nginx-vault.conf` — serves `dist/` with SPA fallback and reverse
-  proxies `/yahoo/` and `/cboe/` to the upstream hosts on the same origin.
+  proxies `/yahoo/` and `/cboe/` to the upstream hosts on the same origin
+  (standard 80/443 path, TLS via certbot).
+- `deploy/nginx-vault-internal.conf` — variant for hosts where another web
+  server already owns 80/443 (e.g. a Caddy container). nginx listens on port
+  **8081 on all interfaces** (a Docker bridge container cannot reach the host's
+  loopback) and Caddy fronts it with `reverse_proxy <bridge-gateway>:8081`,
+  handling TLS itself (no certbot). Real-world lesson from the first
+  deployment: get the upstream IP from `docker network inspect`, not a guess.
 - `.env.example` — documents the build-time variables.
-- `server/.env.example` + `server/vault-alerts.service` — watcher config and
-  systemd unit for the VPS.
+- `server/.env.example` + `server/vault-alerts.service` — companion-service
+  config and systemd unit for the VPS.
 
 The app remains fully functional in the hosted preview with no configuration.
 
