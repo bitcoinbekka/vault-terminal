@@ -61,6 +61,18 @@ node -v
 
 Should print `v22.x` or higher.
 
+Start nginx now (installed but not running by default on some images):
+
+```bash
+sudo systemctl enable --now nginx
+```
+
+```bash
+sudo systemctl status nginx
+```
+
+Should show `Active: active (running)`.
+
 ---
 
 ## Step 3 — Get the code
