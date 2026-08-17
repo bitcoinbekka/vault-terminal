@@ -65,6 +65,17 @@ Should print `v22.x` or higher.
 
 ## Step 3 — Get the code
 
+`/var/www` is owned by root, so first create the folder and take ownership of
+it (this also lets `npm ci` / the build write files without sudo):
+
+```bash
+sudo mkdir -p /var/www/vault
+```
+
+```bash
+sudo chown $USER:$USER /var/www/vault
+```
+
 ```bash
 git clone https://github.com/bitcoinbekka/vault-terminal.git /var/www/vault
 ```
