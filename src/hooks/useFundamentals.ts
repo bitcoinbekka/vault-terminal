@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 
 import { useCurrentUser } from './useCurrentUser';
-import { decryptOwnData, isEncryptedEvent } from '@/lib/nostrCrypto';
+import { decryptOwnData, isEncryptedEvent, symKey } from '@/lib/nostrCrypto';
 
 /**
  * Reads the owner's SEC fundamentals report for a symbol from Nostr
@@ -44,10 +44,11 @@ export function useFundamentals(symbol: string) {
     enabled: Boolean(pubkey && upper),
     queryFn: async ({ signal }) => {
       if (!pubkey) return null;
-      // Exact d-tag lookup — avoids being crowded out by snapshot events that
-      // share the same `t` tag.
+      const key = await symKey(upper);
+      // Exact d-tag lookup (hashed symbol) — avoids both snapshot crowding and
+      // symbol metadata leaking in plaintext.
       const events = await nostr.query(
-        [{ kinds: [FUNDAMENTALS_KIND], authors: [pubkey], '#d': [`${FUNDAMENTALS_PREFIX}${upper}`], limit: 1 }],
+        [{ kinds: [FUNDAMENTALS_KIND], authors: [pubkey], '#d': [`${FUNDAMENTALS_PREFIX}${key}`], limit: 1 }],
         { signal },
       );
       const ev = events[0];

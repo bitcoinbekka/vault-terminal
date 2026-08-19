@@ -27,6 +27,7 @@
  *   0 * * * * cd /var/www/vault && /usr/bin/node server/market-snapshot.mjs >> /var/log/vault-snapshot.log 2>&1
  */
 
+import { createHash } from 'node:crypto';
 import { finalizeEvent, getPublicKey, nip19 } from 'nostr-tools';
 import { SimplePool } from 'nostr-tools/pool';
 import { getConversationKey, encrypt as nip44Encrypt, decrypt as nip44Decrypt } from 'nostr-tools/nip44';
@@ -35,6 +36,9 @@ const WATCHLIST_D = 'vault:watchlist';
 const WATCHLIST_KIND = 30078;
 const SNAPSHOT_KIND = 30078;
 const SNAPSHOT_PREFIX = 'vault:snapshot:';
+
+/** Opaque symbol key for tags — the symbol never appears in plaintext. */
+const symKey = (symbol) => createHash('sha256').update(symbol.toUpperCase()).digest('hex').slice(0, 16);
 
 const DEFAULT_RELAYS = [
   'wss://relay.ditto.pub',
@@ -157,8 +161,8 @@ async function runSnapshots({ symbolsOverride }) {
             kind: SNAPSHOT_KIND,
             content,
             tags: [
-              ['d', `${SNAPSHOT_PREFIX}${q.symbol}:${hour}`],
-              ['t', q.symbol],
+              ['d', `${SNAPSHOT_PREFIX}${symKey(q.symbol)}:${hour}`],
+              ['t', symKey(q.symbol)],
               ['enc', 'nip44'],
             ],
             created_at: ts,

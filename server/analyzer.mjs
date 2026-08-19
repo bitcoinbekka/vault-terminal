@@ -27,6 +27,7 @@
  *   * * * * * cd /var/www/vault && set -a && . /etc/vault-alerts.env && set +a && /usr/bin/node server/analyzer.mjs --once >> /var/log/vault-analyzer.log 2>&1
  */
 
+import { createHash } from 'node:crypto';
 import { finalizeEvent, getPublicKey, nip19 } from 'nostr-tools';
 import { SimplePool } from 'nostr-tools/pool';
 import { getConversationKey, encrypt as nip44Encrypt, decrypt as nip44Decrypt } from 'nostr-tools/nip44';
@@ -35,6 +36,9 @@ const KIND = 30078;
 const REQUEST_PREFIX = 'vault:analysis:request:';
 const RESULT_PREFIX = 'vault:analysis:';
 const SEC_UA = 'VaultTerminal/1.0 (contact: vault@example.com)';
+
+/** Opaque symbol key for tags — the symbol never appears in plaintext. */
+const symKey = (symbol) => createHash('sha256').update(symbol.toUpperCase()).digest('hex').slice(0, 16);
 
 const DEFAULT_RELAYS = [
   'wss://relay.ditto.pub',
@@ -168,20 +172,25 @@ async function runOnce({ dryRun }) {
     for (const req of requests) {
       const d = req.tags.find(([k]) => k === 'd')?.[1] ?? '';
       if (!d.startsWith(REQUEST_PREFIX)) continue;
-      const symbol = d.slice(REQUEST_PREFIX.length).toUpperCase();
-      if (!/^[A-Z0-9.\-]{1,12}$/.test(symbol)) continue;
 
-      // Decrypt the request (contains requestedAt) and skip if a fresh result exists.
+      // The symbol lives inside the encrypted request (d-tags are hashed).
+      let symbol = '';
       let requestedAt = 0;
       try {
         const parsed = JSON.parse(nip44Decrypt(req.content, conversationKey));
+        symbol = String(parsed.symbol ?? '').toUpperCase();
         requestedAt = parsed.createdAt ?? 0;
       } catch {
-        requestedAt = 0; // can't read — treat as legacy, process anyway
+        log(`SKIP ${d}: could not decrypt request`);
+        continue;
+      }
+      if (!/^[A-Z0-9.\-]{1,12}$/.test(symbol)) {
+        log(`SKIP ${d}: no valid symbol in request`);
+        continue;
       }
 
-      const resultKey = ['vault', 'analysis', symbol];
-      const existing = await pool.get(relays, { kinds: [KIND], authors: [pk], '#d': [`${RESULT_PREFIX}${symbol}`], limit: 1 });
+      const key = symKey(symbol);
+      const existing = await pool.get(relays, { kinds: [KIND], authors: [pk], '#d': [`${RESULT_PREFIX}${key}`], limit: 1 });
       if (existing && requestedAt > 0) {
         try {
           const prev = JSON.parse(nip44Decrypt(existing.content, conversationKey));
@@ -211,8 +220,8 @@ async function runOnce({ dryRun }) {
           kind: KIND,
           content,
           tags: [
-            ['d', `${RESULT_PREFIX}${symbol}`],
-            ['t', symbol],
+            ['d', `${RESULT_PREFIX}${key}`],
+            ['t', key],
             ['enc', 'nip44'],
           ],
           created_at: now,

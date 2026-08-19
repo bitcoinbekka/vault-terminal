@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 
 import { useCurrentUser } from './useCurrentUser';
-import { decryptOwnData, isEncryptedEvent } from '@/lib/nostrCrypto';
+import { decryptOwnData, isEncryptedEvent, symKey } from '@/lib/nostrCrypto';
 
 /**
  * Reads the owner's hourly market snapshots for a symbol from Nostr
@@ -46,15 +46,16 @@ export function useSnapshots(symbol: string) {
     enabled: Boolean(pubkey && upper),
     queryFn: async ({ signal }) => {
       if (!pubkey) return [] as MarketSnapshot[];
+      const key = await symKey(upper);
       const events = await nostr.query(
-        [{ kinds: [SNAPSHOT_KIND], authors: [pubkey], '#t': [upper], limit: 30 }],
+        [{ kinds: [SNAPSHOT_KIND], authors: [pubkey], '#t': [key], limit: 30 }],
         { signal },
       );
 
       const snaps: MarketSnapshot[] = [];
       for (const ev of events) {
         const d = ev.tags.find(([k]) => k === 'd')?.[1] ?? '';
-        if (!d.startsWith(`${SNAPSHOT_PREFIX}${upper}:`)) continue;
+        if (!d.startsWith(`${SNAPSHOT_PREFIX}${key}:`)) continue;
 
         let parsed: SnapshotContent | null = null;
         if (isEncryptedEvent(ev)) {

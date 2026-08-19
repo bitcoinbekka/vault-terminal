@@ -47,3 +47,26 @@ export async function decryptOwnData<T>(
     return null;
   }
 }
+
+/**
+ * Opaque, deterministic key for a symbol, used in `d`/`t` tags of derived
+ * events (snapshots, fundamentals, AI analysis) so the symbol itself never
+ * appears in plaintext on relays. SHA-256 of the uppercase symbol, hex,
+ * first 16 chars.
+ */
+export async function symKey(symbol: string): Promise<string> {
+  const upper = symbol.toUpperCase();
+  try {
+    const data = new TextEncoder().encode(upper);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    return hex.slice(0, 16);
+  } catch {
+    // Non-secure fallback (rare): keep it deterministic and non-obvious.
+    return upper
+      .split('')
+      .map((c) => c.charCodeAt(0).toString(36))
+      .join('')
+      .slice(0, 16);
+  }
+}

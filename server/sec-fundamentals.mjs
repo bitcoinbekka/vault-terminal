@@ -21,6 +21,7 @@
  *   0 6 * * * cd /var/www/vault && /usr/bin/node server/sec-fundamentals.mjs >> /var/log/vault-sec.log 2>&1
  */
 
+import { createHash } from 'node:crypto';
 import { finalizeEvent, getPublicKey, nip19 } from 'nostr-tools';
 import { SimplePool } from 'nostr-tools/pool';
 import { getConversationKey, encrypt as nip44Encrypt, decrypt as nip44Decrypt } from 'nostr-tools/nip44';
@@ -29,6 +30,9 @@ const WATCHLIST_D = 'vault:watchlist';
 const KIND = 30078;
 const FUND_PREFIX = 'vault:fundamentals:';
 const SEC_UA = 'VaultTerminal/1.0 (contact: vault@example.com)';
+
+/** Opaque symbol key for tags — the symbol never appears in plaintext. */
+const symKey = (symbol) => createHash('sha256').update(symbol.toUpperCase()).digest('hex').slice(0, 16);
 
 const DEFAULT_RELAYS = [
   'wss://relay.ditto.pub',
@@ -217,8 +221,8 @@ async function runSec({ symbolsOverride, maxSymbols }) {
             kind: KIND,
             content,
             tags: [
-              ['d', `${FUND_PREFIX}${symbol}`],
-              ['t', symbol],
+              ['d', `${FUND_PREFIX}${symKey(symbol)}`],
+              ['t', symKey(symbol)],
               ['enc', 'nip44'],
             ],
             created_at: ts,

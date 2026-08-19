@@ -21,6 +21,15 @@ A dark "terminal" for retail traders:
   `OPTIONS NVDA`, `HELP`). See `src/lib/commands.ts` + `CommandBar.tsx`.
 - **Equity screener (`/screener`, `EQS <GO>`)** — filter the liquid universe
   by % change, volume, price and 52-week proximity.
+- **Extended hours (`ExtendedHoursPanel`)** — pre-market & after-hours movers
+  across the universe + watchlist (tabs), with PRE-MKT / AFTER-HRS prices and
+  change shown on stock pages (`lib/session.ts`, `includePrePost=true`).
+- **Discover by sector (`SectorDiscover`)** — pick a sector chip, browse its
+  popular liquid names with live quotes (`SECTOR_SYMBOLS`).
+- **Sorting** — portfolio (A-Z / VAL / P-L) and watchlist (A-Z / MOM / VAL /
+  P-L) segmented controls; VAL/P-L use position data.
+- **Privacy mode** — header toggle masks quantities & dollar amounts with
+  `••••` for screen sharing (`usePrivacyMode` + `Mask`).
 - **Stock page (`/stock/:symbol`)** — live quote header, candlestick chart with
   indicator overlays (SMA/EMA/BOLL/VWAP/RSI/MACD), options chain with expected
   move + greeks, corporate news.
@@ -319,6 +328,11 @@ Updates: `git pull && VITE_MARKET_BASE=… npm run build && sudo systemctl reloa
   `npm test` locally.
 - IV "RICH/CHEAP" thresholds are absolute heuristics, not historical
   percentiles (no IV history from the free feed).
+- **Derived events must use hashed symbol keys** (`symKey`) in `d`/`t` tags —
+  plaintext symbols there leak what the user tracks (see ADR 0007).
+- **Don't query by `#t` with a small limit when rarer events share the tag**
+  — hourly snapshots crowd out fundamentals/analysis results. Use exact `#d`
+  lookups for addressable events (this bug bit us once).
 
 ---
 
@@ -338,6 +352,7 @@ Updates: `git pull && VITE_MARKET_BASE=… npm run build && sudo systemctl reloa
 
 ---
 
-*Related docs: `NIP.md` (schema) · `docs/adr/0001–0006` (decisions) ·
+*Related docs: `NIP.md` (schema) · `docs/adr/0001–0007` (decisions) ·
 `docs/DEPLOY.md` (admin) · `docs/INSTALL.md` (beginner install) ·
-`docs/USER_GUIDE.md` (end users) · `.env.example` + `deploy/*` + `server/*` (ops).*
+`docs/USER_GUIDE.md` (end users) · `docs/SECURITY.md` (threat model + audit) ·
+`docs/CLANKER.md` (guide for AI agents) · `.env.example` + `deploy/*` + `server/*` (ops).*

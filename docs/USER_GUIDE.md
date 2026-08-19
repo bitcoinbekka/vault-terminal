@@ -41,11 +41,24 @@ on **Nostr**, so it follows your identity (npub) instead of an app account.
   option contracts (paste the OCC contract like `AAPL260919C00200000`).
 - **Gold, silver, crypto & FX work too** — quick picks in the dialog (GOLD
   `GC=F`, SILVER `SI=F`, BITCOIN `BTC-USD`, ETHEREUM `ETH-USD`), or type any
-  symbol. Quantity = ounces / coins, avg cost per unit; market value tracks
-  live.
+  symbol.
+- **Enter quantity + TOTAL VALUE** (e.g. 2 oz of gold worth $5,800) and the
+  **per-unit average auto-fills** — a live readout shows `2 × $2,900 = $5,800
+  total`. Works for shares, ounces and coins.
 - Your portfolio then shows live P/L, day P/L, allocation, and for options:
   **breakeven, max profit/loss, and a payoff diagram** with the current price
-  marked.
+  marked. Sort it by **A-Z / VALUE / P/L** from the panel header.
+
+**Extended hours — pre-market & after-hours**
+- The dashboard's **EXTENDED HOURS** panel shows overnight movers across the
+  market (PRE-MARKET 4–9:30 ET, AFTER-HOURS 16–20 ET tabs).
+- Every stock page shows **PRE-MKT / AFTER-HRS** price + % change under the
+  quote when extended trading is happening.
+
+**Discover by sector**
+- The **DISCOVER BY SECTOR** panel (or `DISCOVER <GO>`) lets you pick a sector
+  and browse its popular liquid names with live quotes — great for finding
+  candidates beyond your watchlist.
 
 **Never stare at the screen**
 - **ALERT** on any stock page → pick "price above / below" or "% up / down",

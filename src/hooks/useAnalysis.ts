@@ -4,7 +4,7 @@ import { useNostr } from '@nostrify/react';
 
 import { useCurrentUser } from './useCurrentUser';
 import { useNostrPublish } from './useNostrPublish';
-import { decryptOwnData, encryptOwnData, isEncryptedEvent } from '@/lib/nostrCrypto';
+import { decryptOwnData, encryptOwnData, isEncryptedEvent, symKey } from '@/lib/nostrCrypto';
 
 /**
  * Phase 2 AI filing analysis. The app publishes an encrypted request
@@ -42,10 +42,10 @@ export function useAnalysis(symbol: string, refetchIntervalMs?: number) {
     refetchInterval: refetchIntervalMs,
     queryFn: async ({ signal }) => {
       if (!pubkey) return null;
-      // Exact d-tag lookup — avoids being crowded out by high-frequency
-      // snapshot events that share the same `t` tag.
+      const key = await symKey(upper);
+      // Exact d-tag lookup with a hashed symbol — private AND findable.
       const events = await nostr.query(
-        [{ kinds: [ANALYSIS_KIND], authors: [pubkey], '#d': [`${ANALYSIS_RESULT_PREFIX}${upper}`], limit: 1 }],
+        [{ kinds: [ANALYSIS_KIND], authors: [pubkey], '#d': [`${ANALYSIS_RESULT_PREFIX}${key}`], limit: 1 }],
         { signal },
       );
       const ev = events[0];
@@ -75,13 +75,14 @@ export function useRequestAnalysis() {
     async (symbol: string): Promise<void> => {
       if (!user) throw new Error('Not logged in');
       const upper = symbol.toUpperCase();
+      const key = await symKey(upper);
       const payload = { version: 1, symbol: upper, createdAt: Math.floor(Date.now() / 1000) };
       const content = await encryptOwnData(user.signer, user.pubkey, payload);
       await publish({
         kind: ANALYSIS_KIND,
         content,
         tags: [
-          ['d', `${ANALYSIS_REQUEST_PREFIX}${upper}`],
+          ['d', `${ANALYSIS_REQUEST_PREFIX}${key}`],
           ['enc', 'nip44'],
         ],
       });

@@ -168,18 +168,23 @@ hold time are computed client-side with FIFO cost-basis accounting
 - `date` — unix seconds of execution.
 - `fees` — optional, subtracted from realized P/L.
 
-## Market Snapshots (`d` = `vault:snapshot:<SYMBOL>:<unix-hour>`)
+## Market Snapshots (`d` = `vault:snapshot:<KEY>:<unix-hour>`)
 
 Written by the server-side snapshot pusher (`server/market-snapshot.mjs`) on the
 owner's VPS — usually hourly — to build a private, decentralized price history.
 One addressable event per symbol per hour, so relays retain the full series.
 
+**Privacy note:** `<KEY>` is a SHA-256 hash of the uppercase symbol (first 16
+hex chars, computed by `symKey` in `src/lib/nostrCrypto.ts` / server-side
+`node:crypto`). The symbol itself **never appears in plaintext tags** — only
+the owner can decrypt the content and know which symbol it is.
+
 **Tags**
 
 | Tag | Values | Purpose |
 | --- | --- | --- |
-| `d` | `vault:snapshot:AAPL:1786734000` | Hour-bucketed addressable id |
-| `t` | uppercase symbol | Relay-queryable per symbol |
+| `d` | `vault:snapshot:9f86d081:1786734000` | Hour-bucketed addressable id (hashed symbol) |
+| `t` | hashed symbol key | Relay-queryable per symbol (opaque) |
 | `enc` | `nip44` | Content is NIP-44 ciphertext (owner-only) |
 | `client` | hostname | Added by the publish path where present |
 
@@ -198,23 +203,24 @@ One addressable event per symbol per hour, so relays retain the full series.
 }
 ```
 
-Read via `{ kinds: [30078], authors: [owner], '#t': [symbol], limit: 24 }` and
-filtered by the `d` prefix. Snapshots are market data (not financial advice).
+Read via `{ kinds: [30078], authors: [owner], '#t': [symKey(symbol)], limit: 30 }`
+and filtered by the `d` prefix. Snapshots are market data (not financial advice).
 
-## SEC Fundamentals (`d` = `vault:fundamentals:<SYMBOL>`)
+## SEC Fundamentals (`d` = `vault:fundamentals:<KEY>`)
 
 Written by the server-side SEC fetcher (`server/sec-fundamentals.mjs`) on the
 owner's VPS (typically daily via cron). Pulls annual 10-K figures from SEC
 EDGAR (free, structured XBRL) for US-listed watchlist symbols and publishes an
-encrypted summary. Canadian (SEDAR) and other non-US listings are skipped —
-manual filing upload arrives with the Phase 2 analyzer.
+encrypted summary. `<KEY>` is the hashed symbol (see the snapshots section) —
+**no plaintext symbols in tags**. Canadian (SEDAR) and other non-US listings
+are skipped — manual filing upload arrives with the Phase 2 analyzer.
 
 **Tags**
 
 | Tag | Values | Purpose |
 | --- | --- | --- |
-| `d` | `vault:fundamentals:AAPL` | Addressable identifier |
-| `t` | uppercase symbol | Relay-queryable per symbol |
+| `d` | `vault:fundamentals:9f86d081` | Addressable identifier (hashed symbol) |
+| `t` | hashed symbol key | Relay-queryable per symbol (opaque) |
 | `enc` | `nip44` | Content is NIP-44 ciphertext (owner-only) |
 
 **Content** (plaintext JSON, then encrypted):
@@ -247,9 +253,11 @@ and filtered by the `d` prefix.
 
 ## AI Filing Analysis (Phase 2)
 
-The app publishes a **request** (d = `vault:analysis:request:<SYMBOL>`, encrypted);
+The app publishes a **request** (d = `vault:analysis:request:<KEY>`, encrypted);
 the VPS analyzer (`server/analyzer.mjs`) pulls SEC data, runs an LLM, and
-publishes a **report** (d = `vault:analysis:<SYMBOL>`, `t`-tagged, encrypted).
+publishes a **report** (d = `vault:analysis:<KEY>`, `t`-tagged, encrypted).
+`<KEY>` is the hashed symbol — the actual symbol travels only inside the
+encrypted request/report content. **No plaintext symbols in tags.**
 
 **Request content** (encrypted): `{version, symbol, createdAt}`
 
