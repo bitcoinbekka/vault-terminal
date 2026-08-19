@@ -25,10 +25,11 @@ import { SupplyChainPanel } from '@/components/terminal/SupplyChainPanel';
 import { FundamentalsPanel } from '@/components/terminal/FundamentalsPanel';
 
 import { useFxRate } from '@/hooks/useFx';
+import { computeSession } from '@/lib/session';
 import { CURRENCIES } from '@/lib/fx';
 
 import { CHART_RANGES, DEFAULT_RANGE, isValidSymbol, normalizeSymbol } from '@/lib/yahoo';
-import { formatCompact, formatPrice, formatTime } from '@/lib/format';
+import { colorForChange, formatCompact, formatPercent, formatPrice, formatTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 function Stat({ label, value }: { label: string; value: ReactNode }) {
@@ -73,6 +74,7 @@ const StockPage = () => {
   const change = price !== undefined && typeof prev === 'number' ? price - prev : null;
   const pct = change !== null && prev ? (change / prev) * 100 : null;
   const candles = chart.data?.candles ?? [];
+  const session = useMemo(() => computeSession(candles, meta), [candles, meta]);
   const open = candles[0]?.o;
   const firstQuote = info.data?.quotes?.[0];
   const news = info.data?.news ?? [];
@@ -156,6 +158,17 @@ const StockPage = () => {
             <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
               PREV CLOSE {formatPrice(prev)}
             </div>
+            {session.postPrice !== null ? (
+              <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                <span className="font-semibold text-signal">AFTER-HRS</span> {formatPrice(session.postPrice)}{' '}
+                <span className={colorForChange(session.postChangePct ?? 0)}>({formatPercent(session.postChangePct)})</span>
+              </div>
+            ) : session.prePrice !== null ? (
+              <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                <span className="font-semibold text-signal">PRE-MKT</span> {formatPrice(session.prePrice)}{' '}
+                <span className={colorForChange(session.preChangePct ?? 0)}>({formatPercent(session.preChangePct)})</span>
+              </div>
+            ) : null}
             {metaCurrency && metaCurrency !== 'USD' && CURRENCIES.some((c) => c.code === metaCurrency) && typeof price === 'number' && usdRate.data ? (
               <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
                 ≈ ${(price / usdRate.data).toFixed(2)} USD

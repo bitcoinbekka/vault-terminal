@@ -80,6 +80,12 @@ export interface YahooMeta {
   dataGranularity?: string;
   range?: string;
   validRanges?: string[];
+  /** Trading sessions (pre/regular/post) — used for extended-hours reads. */
+  currentTradingPeriod?: {
+    pre?: { start?: number; end?: number };
+    regular?: { start?: number; end?: number };
+    post?: { start?: number; end?: number };
+  };
 }
 
 export interface Candle {
@@ -227,7 +233,9 @@ export async function fetchChart(
   interval = '5m',
   signal?: AbortSignal,
 ): Promise<QuoteData> {
-  const path = `/v8/finance/chart/${encodeURIComponent(symbol)}?range=${encodeURIComponent(range)}&interval=${encodeURIComponent(interval)}`;
+  // Include extended-hours candles (pre-market + after-hours) for intraday reads.
+  const prePost = range === '1d' && interval === '5m' ? '&includePrePost=true' : '';
+  const path = `/v8/finance/chart/${encodeURIComponent(symbol)}?range=${encodeURIComponent(range)}&interval=${encodeURIComponent(interval)}${prePost}`;
   const raw = await fetchJson<{
     chart?: {
       result?: Array<{

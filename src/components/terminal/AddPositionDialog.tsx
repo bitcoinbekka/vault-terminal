@@ -82,11 +82,11 @@ export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPosit
     }
   }, [open, editPosition]);
 
-  // Total cost → average cost (total ÷ quantity).
+  // Total value → average (total ÷ quantity).
   useEffect(() => {
     const q = Number(quantity);
     const t = Number(totalCost);
-    if (q > 0 && Number.isFinite(t) && t >= 0 && lastCostEdit.current === 'total') {
+    if (q > 0 && Number.isFinite(t) && t > 0 && lastCostEdit.current === 'total') {
       setAvgCost(String(+(t / q).toFixed(4)));
     }
   }, [quantity, totalCost]);
@@ -308,6 +308,14 @@ export function AddPositionDialog({ open, onOpenChange, editPosition }: AddPosit
               />
             </div>
           </div>
+
+          {(Number(quantity) > 0 && Number(avgCost) > 0) || Number(totalCost) > 0 ? (
+            <p className="rounded-md border border-signal/20 bg-signal/5 px-2.5 py-1.5 font-mono text-[11px] text-foreground">
+              {Number(quantity) > 0 ? `${quantity} × ${Number(avgCost) > 0 ? `$${Number(avgCost).toFixed(4)}` : '—'} = ` : ''}
+              <span className="font-bold">${Number(Number(totalCost) > 0 ? totalCost : Number(quantity) * Number(avgCost)).toFixed(2)}</span>
+              <span className="text-muted-foreground"> total value</span>
+            </p>
+          ) : null}
 
           {error ? <p className="text-xs text-loss">{error}</p> : null}
         </div>

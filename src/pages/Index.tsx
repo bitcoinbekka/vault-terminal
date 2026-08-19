@@ -10,6 +10,7 @@ import { TrendingPanel } from '@/components/terminal/TrendingPanel';
 import { PortfolioPanel } from '@/components/terminal/PortfolioPanel';
 import { SectorRotation } from '@/components/terminal/SectorRotation';
 import { MoversScanner } from '@/components/terminal/MoversScanner';
+import { ExtendedHoursPanel } from '@/components/terminal/ExtendedHoursPanel';
 import { OptionsFlow } from '@/components/terminal/OptionsFlow';
 import { NewsFeed } from '@/components/terminal/NewsFeed';
 import { Panel } from '@/components/terminal/Panel';
@@ -34,6 +35,8 @@ const Index = () => {
       <WatchlistPanel />
 
       <MoversScanner />
+
+      <ExtendedHoursPanel />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <TrendingPanel />
