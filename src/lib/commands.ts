@@ -63,6 +63,14 @@ export const COMMANDS: VaultCommand[] = [
     aliases: ['ROTATION'],
   },
   {
+    code: 'DISCOVER',
+    name: 'Discover by Sector',
+    description: 'Popular symbols by sector, with live quotes',
+    kind: 'scroll',
+    target: 'discover',
+    aliases: ['EXPLORE'],
+  },
+  {
     code: 'REGIME',
     name: 'Macro Regime',
     description: 'VIX fear gauge, yields, gold, silver, BTC, ETH',
