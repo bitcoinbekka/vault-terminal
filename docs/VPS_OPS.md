@@ -34,7 +34,7 @@
 | `relay.plebeian.build` | `127.0.0.1:7778` (strfry) |
 | `vault.plebeian.build` | nginx `127.0.0.1:8081` (`/var/www/vault/dist` + `/yahoo /cboe` proxies) |
 | `sahmstr.com`, `www.sahmstr.com` | nginx `127.0.0.1:8083` (`/var/www/sahmstr.com/`) |
-| `torri.plebeian.build` | **REMOVED 2026-08-26** (torii-quest game was decommissioned) |
+| `torii.plebeian.build` | static `/var/www/torii.quest/current` (built from `~/torii-quest`, e.g. `0.2.709-alpha`) + `wss://…/mp` → `127.0.0.1:8787` (`torii-arena-ws.service`, admin npub via `QUEST_ADMIN_NPUB`) |
 
 Ports in use: 8080 (scheduler) · 8081 (vault nginx) · 8083 (sahmstr nginx) ·
 7777/7778 (relays) · others (houseof — see `/etc/nginx/sites-enabled/`).
@@ -44,7 +44,10 @@ Ports in use: 8080 (scheduler) · 8081 (vault nginx) · 8083 (sahmstr nginx) ·
 - Relays run as containers (strfry): `plebeian-relay`, `sahmstr-relay`,
   `torii-quest-relay`. Don't stop/restart/remove other projects' containers.
 - `plebeian-scheduler` (port 8080) is another project's — leave it.
-- `torii-quest-web` was removed — do not `docker compose up` it back.
+- `torii-quest-web` Docker container is gone — torii is now **bare-metal**
+  (static + `torii-arena-ws.service` on 8787). The game's `install.sh` now
+  tolerates an existing host Caddy (tags v0.2.707+), but the manual/append
+  path remains the safe default here.
 
 ## Repos & deploy paths (one clone = one deploy path)
 
