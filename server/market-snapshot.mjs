@@ -96,20 +96,24 @@ async function readWatchlist(pool, relays, sk, pk) {
 }
 
 async function fetchQuote(symbol) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=5m`;
+  const token = (process.env.FINNHUB_TOKEN ?? '').trim();
+  if (!token) throw new Error('FINNHUB_TOKEN is not set in environment');
+
+  const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol.toUpperCase())}&token=${token}`;
   const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${symbol}`);
   const data = await res.json();
-  const meta = data?.chart?.result?.[0]?.meta;
-  if (!meta || typeof meta.regularMarketPrice !== 'number') throw new Error(`No price for ${symbol}`);
-  const prev = meta.chartPreviousClose ?? meta.previousClose ?? null;
+
+  // Finnhub /quote: { c: current, h: high, l: low, o: open, pc: prevClose, t: timestamp }
+  if (!data || typeof data.c !== 'number' || data.c === 0) throw new Error(`No price for ${symbol}`);
+  const prev = typeof data.pc === 'number' ? data.pc : null;
   return {
     symbol: symbol.toUpperCase(),
-    name: meta.longName ?? meta.shortName ?? symbol.toUpperCase(),
-    price: meta.regularMarketPrice,
+    name: symbol.toUpperCase(),
+    price: data.c,
     prevClose: prev,
-    changePct: prev ? ((meta.regularMarketPrice - prev) / prev) * 100 : null,
-    volume: meta.regularMarketVolume ?? null,
+    changePct: prev ? ((data.c - prev) / prev) * 100 : null,
+    volume: null,
   };
 }
 

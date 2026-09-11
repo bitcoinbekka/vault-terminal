@@ -25,7 +25,7 @@ export function AlertWatcher() {
     for (const alert of active) {
       try {
         const data = await queryClient.fetchQuery({
-          queryKey: ['yahoo', 'chart', alert.symbol, '1D'],
+          queryKey: ['yahoo', 'quote', alert.symbol],
           queryFn: ({ signal }) => fetchQuote(alert.symbol, signal),
           staleTime: CHECK_INTERVAL_MS,
         });

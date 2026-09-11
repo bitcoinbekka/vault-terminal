@@ -1,24 +1,22 @@
 /**
- * Market data layer.
+ * Market data layer — powered by Finnhub.
  *
- * Quotes, candles, search, and trending come from Yahoo Finance; options chains
- * come from the CBOE delayed-quotes CDN (free, no API key, full greeks).
+ * Quotes, candles, search, news and trending come from Finnhub's free API
+ * (https://finnhub.io). Options chains still come from the CBOE delayed-quotes
+ * CDN (free, no key, full greeks) — Finnhub options require a paid plan.
  *
- * Neither host sends CORS headers, so browsers can't read them directly. The
- * fetch layer therefore tries, in order:
+ * API key configuration (in priority order):
+ *   1. VITE_FINNHUB_TOKEN build-time env var  (browser app)
+ *   2. Falls back to the Shakespeare CORS proxy so the preview always works
  *
- *   1. A same-origin reverse proxy (set VITE_MARKET_BASE at build time). If the
- *      app and proxy share an origin, no CORS headers are needed at all — the
- *      recommended setup for self-hosting. Paths: /yahoo/* and /cboe/*.
- *   2. A CORS proxy using the `?url=` convention (VITE_CORS_PROXY at build
- *      time, or the Shakespeare default).
- *   3. A direct fetch (works only where CORS is relaxed).
+ * For self-hosting set VITE_FINNHUB_TOKEN in your build environment:
+ *   VITE_FINNHUB_TOKEN=your_key npm run build
  *
- * Example build for a self-hosted VPS:
- *   VITE_MARKET_BASE=https://vault.example.com npm run build
+ * Finnhub free tier: 60 req/min, no IP banning (key-based auth).
+ * CBOE options endpoint: no auth, no CORS restrictions.
  */
 
-const YAHOO_BASE = 'https://query1.finance.yahoo.com';
+const FINNHUB_BASE = 'https://finnhub.io/api/v1';
 const CBOE_BASE = 'https://cdn.cboe.com';
 const DEFAULT_PROXY_BASE = 'https://proxy.shakespeare.diy/?url=';
 
@@ -31,27 +29,47 @@ function getViteEnv(name: string): string | undefined {
   }
 }
 
-function buildAttempts(url: string): string[] {
-  const attempts: string[] = [];
+function getFinnhubToken(): string {
+  return getViteEnv('VITE_FINNHUB_TOKEN')?.trim() ?? '';
+}
 
-  const marketBase = getViteEnv('VITE_MARKET_BASE')?.trim().replace(/\/+$/, '');
-  if (marketBase) {
-    if (url.startsWith(YAHOO_BASE)) {
-      attempts.push(`${marketBase}/yahoo/${url.slice(YAHOO_BASE.length)}`);
-    } else if (url.startsWith(CBOE_BASE)) {
-      attempts.push(`${marketBase}/cboe/${url.slice(CBOE_BASE.length)}`);
-    }
+/** Build a Finnhub URL, appending the token as a query param. */
+function finnhubUrl(path: string, params: Record<string, string | number> = {}): string {
+  const token = getFinnhubToken();
+  const base = `${FINNHUB_BASE}${path}`;
+  const qs = new URLSearchParams(
+    Object.entries({ ...params, ...(token ? { token } : {}) }).map(([k, v]) => [k, String(v)]),
+  ).toString();
+  return `${base}?${qs}`;
+}
+
+/** Build fetch attempts for a Finnhub URL (proxy fallback when no token). */
+function buildFinnhubAttempts(url: string): string[] {
+  const token = getFinnhubToken();
+  if (token) {
+    // Key is embedded — direct fetch works from the browser (Finnhub sends CORS headers).
+    return [url];
   }
+  // No token: route through CORS proxy.
+  const proxyBase = getViteEnv('VITE_CORS_PROXY')?.trim() || DEFAULT_PROXY_BASE;
+  return [`${proxyBase}${encodeURIComponent(url)}`, url];
+}
 
+/** Build fetch attempts for a CBOE URL (no CORS headers on cdn.cboe.com). */
+function buildCboeAttempts(url: string): string[] {
+  const marketBase = getViteEnv('VITE_MARKET_BASE')?.trim().replace(/\/+$/, '');
+  const attempts: string[] = [];
+  if (marketBase && url.startsWith(CBOE_BASE)) {
+    attempts.push(`${marketBase}/cboe/${url.slice(CBOE_BASE.length)}`);
+  }
   const proxyBase = getViteEnv('VITE_CORS_PROXY')?.trim() || DEFAULT_PROXY_BASE;
   attempts.push(`${proxyBase}${encodeURIComponent(url)}`);
-
   attempts.push(url);
   return attempts;
 }
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (kept compatible with Yahoo shapes so callers don't change)
 // ---------------------------------------------------------------------------
 
 export interface YahooMeta {
@@ -80,7 +98,6 @@ export interface YahooMeta {
   dataGranularity?: string;
   range?: string;
   validRanges?: string[];
-  /** Trading sessions (pre/regular/post) — used for extended-hours reads. */
   currentTradingPeriod?: {
     pre?: { start?: number; end?: number };
     regular?: { start?: number; end?: number };
@@ -129,7 +146,7 @@ export interface SearchResult {
   news: NewsItem[];
 }
 
-/** CBOE delayed options contract. Contract symbols use OCC format, e.g. AAPL260814C00120000 */
+/** CBOE delayed options contract. */
 export interface CboeOption {
   option: string;
   bid: number;
@@ -165,8 +182,7 @@ export interface OptionsData {
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
-async function fetchText(url: string, signal?: AbortSignal): Promise<string> {
-  const attempts = buildAttempts(url);
+async function fetchWithAttempts(attempts: string[], signal?: AbortSignal): Promise<string> {
   let lastError: unknown;
 
   for (const attempt of attempts) {
@@ -179,7 +195,6 @@ async function fetchText(url: string, signal?: AbortSignal): Promise<string> {
         throw new Error(`HTTP ${res.status}`);
       }
       const text = await res.text();
-      // The proxy can return an HTML error page with a 200 in some edge cases.
       const trimmed = text.trim();
       if (trimmed.startsWith('<') || trimmed.startsWith('<!')) {
         throw new Error('Proxy returned a non-JSON response');
@@ -194,19 +209,124 @@ async function fetchText(url: string, signal?: AbortSignal): Promise<string> {
 }
 
 export async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const text = await fetchText(url, signal);
+  const text = await fetchWithAttempts(buildFinnhubAttempts(url), signal);
   return JSON.parse(text) as T;
 }
 
-function assertResult<T>(data: T, message: string): T {
-  if (data === null || data === undefined) {
-    throw new Error(message);
-  }
-  return data;
+// ---------------------------------------------------------------------------
+// Finnhub response types
+// ---------------------------------------------------------------------------
+
+interface FinnhubQuote {
+  c: number;   // current price
+  h: number;   // high
+  l: number;   // low
+  o: number;   // open
+  pc: number;  // previous close
+  t: number;   // timestamp
+  v?: number;  // volume (not in all responses)
+  dp?: number; // percent change
+  d?: number;  // change
+}
+
+interface FinnhubCandles {
+  c: number[];
+  h: number[];
+  l: number[];
+  o: number[];
+  t: number[];
+  v: number[];
+  s: string; // "ok" or "no_data"
+}
+
+interface FinnhubProfile {
+  name?: string;
+  currency?: string;
+  exchange?: string;
+  finnhubIndustry?: string;
+  ticker?: string;
+  country?: string;
+  ipo?: string;
+  logo?: string;
+  marketCapitalization?: number;
+  shareOutstanding?: number;
+  weburl?: string;
+  phone?: string;
+}
+
+interface FinnhubSearchResult {
+  count: number;
+  result: Array<{
+    description: string;
+    displaySymbol: string;
+    symbol: string;
+    type: string;
+  }>;
+}
+
+interface FinnhubNews {
+  category: string;
+  datetime: number;
+  headline: string;
+  id: number;
+  image: string;
+  related: string;
+  source: string;
+  summary: string;
+  url: string;
+}
+
+/**
+ * Resolve the "52-week high/low" from candle data. Finnhub's quote endpoint
+ * doesn't include 52wk data directly, so we compute from the 1Y candles when
+ * available, or fall back to a 0 placeholder.
+ */
+function weekHighLow(candles: FinnhubCandles | null): { high: number; low: number } {
+  if (!candles || candles.s !== 'ok' || !candles.h.length) return { high: 0, low: 0 };
+  return {
+    high: Math.max(...candles.h),
+    low: Math.min(...candles.l),
+  };
+}
+
+/** Map a Finnhub resolution string to seconds-per-bar for interval labelling. */
+function resolutionToInterval(resolution: string): string {
+  const map: Record<string, string> = {
+    '1': '1m', '5': '5m', '15': '15m', '30': '30m',
+    '60': '60m', 'D': '1d', 'W': '1wk', 'M': '1mo',
+  };
+  return map[resolution] ?? resolution;
+}
+
+/** Convert our range/interval strings to a Finnhub resolution character. */
+function toFinnhubResolution(interval: string): string {
+  const map: Record<string, string> = {
+    '1m': '1', '5m': '5', '15m': '15', '30m': '30',
+    '60m': '60', '1h': '60', '1d': 'D', '1wk': 'W', '1mo': 'M',
+  };
+  return map[interval] ?? 'D';
+}
+
+/** Compute unix timestamps for a range string relative to now. */
+function rangeToFromTo(range: string): { from: number; to: number } {
+  const now = Math.floor(Date.now() / 1000);
+  const map: Record<string, number> = {
+    '1d': 60 * 60 * 24,
+    '5d': 60 * 60 * 24 * 5,
+    '1mo': 60 * 60 * 24 * 31,
+    '3mo': 60 * 60 * 24 * 92,
+    '6mo': 60 * 60 * 24 * 182,
+    '1y': 60 * 60 * 24 * 365,
+    '2y': 60 * 60 * 24 * 730,
+    '5y': 60 * 60 * 24 * 365 * 5,
+    'max': 60 * 60 * 24 * 365 * 20,
+  };
+  const seconds = map[range] ?? 60 * 60 * 24;
+  return { from: now - seconds, to: now };
 }
 
 // ---------------------------------------------------------------------------
-// Yahoo Finance endpoints
+// Quote + chart
 // ---------------------------------------------------------------------------
 
 export interface ChartRange {
@@ -227,59 +347,158 @@ export const CHART_RANGES: Record<string, ChartRange> = {
 
 export const DEFAULT_RANGE = '1D';
 
+/** Build a QuoteData from Finnhub quote + candles + optional profile. */
+function buildQuoteData(
+  symbol: string,
+  quote: FinnhubQuote,
+  candles: FinnhubCandles,
+  profile: FinnhubProfile | null,
+  interval: string,
+): QuoteData {
+  const { high, low } = weekHighLow(candles);
+  const candleList: Candle[] =
+    candles.s === 'ok'
+      ? candles.t.map((t, i) => ({
+          t,
+          o: candles.o[i] ?? quote.c,
+          h: candles.h[i] ?? quote.c,
+          l: candles.l[i] ?? quote.c,
+          c: candles.c[i] ?? quote.c,
+          v: candles.v[i] ?? 0,
+        }))
+      : [];
+
+  const meta: YahooMeta = {
+    symbol: symbol.toUpperCase(),
+    currency: profile?.currency ?? 'USD',
+    exchangeName: profile?.exchange ?? '',
+    fullExchangeName: profile?.exchange ?? '',
+    instrumentType: 'EQUITY',
+    regularMarketTime: quote.t,
+    hasPrePostMarketData: false,
+    gmtoffset: 0,
+    timezone: 'EST',
+    exchangeTimezoneName: 'America/New_York',
+    regularMarketPrice: quote.c,
+    regularMarketDayHigh: quote.h,
+    regularMarketDayLow: quote.l,
+    regularMarketVolume: 0,
+    fiftyTwoWeekHigh: high || quote.h,
+    fiftyTwoWeekLow: low || quote.l,
+    longName: profile?.name,
+    shortName: profile?.name,
+    chartPreviousClose: quote.pc,
+    previousClose: quote.pc,
+    dataGranularity: resolutionToInterval(toFinnhubResolution(interval)),
+  };
+
+  return { meta, candles: candleList };
+}
+
 export async function fetchChart(
   symbol: string,
   range = '1d',
   interval = '5m',
   signal?: AbortSignal,
 ): Promise<QuoteData> {
-  // Include extended-hours candles (pre-market + after-hours) for intraday reads.
-  const prePost = range === '1d' && interval === '5m' ? '&includePrePost=true' : '';
-  const path = `/v8/finance/chart/${encodeURIComponent(symbol)}?range=${encodeURIComponent(range)}&interval=${encodeURIComponent(interval)}${prePost}`;
-  const raw = await fetchJson<{
-    chart?: {
-      result?: Array<{
-        meta: YahooMeta;
-        timestamp?: number[];
-        indicators?: { quote?: Array<{ open?: number[]; high?: number[]; low?: number[]; close?: number[]; volume?: number[] }> };
-      }>;
-      error?: { code?: string; description?: string } | null;
-    } | null;
-  }>(`${YAHOO_BASE}${path}`, signal);
+  const normalized = normalizeSymbol(symbol);
+  const resolution = toFinnhubResolution(interval);
+  const { from, to } = rangeToFromTo(range);
 
-  const chart = assertResult(raw.chart, `No chart data for ${symbol}`);
-  if (chart.error) {
-    throw new Error(chart.error.description ?? chart.error.code ?? `Chart error for ${symbol}`);
-  }
-  const result = assertResult(chart.result?.[0], `No chart result for ${symbol}`);
-  const quote = result.indicators?.quote?.[0];
-  const timestamps = result.timestamp ?? [];
+  const [quoteRaw, candlesRaw, profileRaw] = await Promise.allSettled([
+    fetchJson<FinnhubQuote>(finnhubUrl('/quote', { symbol: normalized }), signal),
+    fetchJson<FinnhubCandles>(
+      finnhubUrl('/stock/candle', { symbol: normalized, resolution, from, to }),
+      signal,
+    ),
+    // Profile gives us name + currency; best-effort only.
+    fetchJson<FinnhubProfile>(finnhubUrl('/stock/profile2', { symbol: normalized }), signal),
+  ]);
 
-  const candles: Candle[] = [];
-  for (let i = 0; i < timestamps.length; i++) {
-    const c = quote?.close?.[i];
-    const o = quote?.open?.[i];
-    const h = quote?.high?.[i];
-    const l = quote?.low?.[i];
-    const v = quote?.volume?.[i];
-    if (c === undefined || c === null) continue;
-    candles.push({
-      t: timestamps[i],
-      o: o ?? c,
-      h: h ?? c,
-      l: l ?? c,
-      c,
-      v: v ?? 0,
-    });
+  if (quoteRaw.status === 'rejected') {
+    throw new Error(`Quote fetch failed for ${normalized}: ${String(quoteRaw.reason)}`);
   }
 
-  return { meta: result.meta, candles };
+  const quote = quoteRaw.value;
+  if (!quote || typeof quote.c !== 'number' || quote.c === 0) {
+    throw new Error(`No quote data for ${normalized}`);
+  }
+
+  const candles: FinnhubCandles =
+    candlesRaw.status === 'fulfilled' && candlesRaw.value?.s === 'ok'
+      ? candlesRaw.value
+      : { c: [], h: [], l: [], o: [], t: [], v: [], s: 'no_data' };
+
+  const profile: FinnhubProfile | null =
+    profileRaw.status === 'fulfilled' ? profileRaw.value : null;
+
+  return buildQuoteData(normalized, quote, candles, profile, interval);
 }
 
-/** Intraday snapshot used for watchlists / ticker tape. */
-export function fetchQuote(symbol: string, signal?: AbortSignal): Promise<QuoteData> {
-  return fetchChart(symbol, '1d', '5m', signal);
+// ---------------------------------------------------------------------------
+// Batched quotes — Finnhub /quote called per-symbol but coalesced in a window
+// (Finnhub free tier: 60 req/min, so we space them out carefully).
+// ---------------------------------------------------------------------------
+
+const QUOTE_BATCH_SIZE = 20;
+const QUOTE_BATCH_WINDOW_MS = 50;
+
+interface PendingQuote {
+  resolve: (data: QuoteData) => void;
+  reject: (error: unknown) => void;
 }
+
+let pendingQuotes = new Map<string, PendingQuote[]>();
+let quoteFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function flushQuoteBatch(): Promise<void> {
+  quoteFlushTimer = null;
+  const batch = pendingQuotes;
+  pendingQuotes = new Map();
+  const symbols = [...batch.keys()];
+  if (symbols.length === 0) return;
+
+  // Process in chunks, with a small inter-chunk delay to respect rate limits.
+  for (let i = 0; i < symbols.length; i += QUOTE_BATCH_SIZE) {
+    const chunk = symbols.slice(i, i + QUOTE_BATCH_SIZE);
+
+    await Promise.all(
+      chunk.map(async (symbol) => {
+        try {
+          const data = await fetchChart(symbol, '1d', '5m');
+          for (const pending of batch.get(symbol) ?? []) pending.resolve(data);
+        } catch (error) {
+          for (const pending of batch.get(symbol) ?? []) pending.reject(error);
+        }
+      }),
+    );
+
+    // Brief pause between chunks to stay within 60 req/min.
+    if (i + QUOTE_BATCH_SIZE < symbols.length) {
+      await new Promise<void>((r) => setTimeout(r, 500));
+    }
+  }
+}
+
+/**
+ * Intraday snapshot used for watchlists / ticker tape / scanners. Coalesced
+ * into batched requests within a short window.
+ */
+export function fetchQuote(symbol: string, _signal?: AbortSignal): Promise<QuoteData> {
+  const normalized = normalizeSymbol(symbol);
+  return new Promise<QuoteData>((resolve, reject) => {
+    const entries = pendingQuotes.get(normalized) ?? [];
+    entries.push({ resolve, reject });
+    pendingQuotes.set(normalized, entries);
+    if (quoteFlushTimer === null) {
+      quoteFlushTimer = setTimeout(() => void flushQuoteBatch(), QUOTE_BATCH_WINDOW_MS);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------
 
 export async function fetchSearch(
   query: string,
@@ -288,47 +507,76 @@ export async function fetchSearch(
 ): Promise<SearchResult> {
   const quotesCount = opts.quotesCount ?? 8;
   const newsCount = opts.newsCount ?? 8;
-  const path = `/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=${quotesCount}&newsCount=${newsCount}&enableFuzzyQuery=false`;
-  const raw = await fetchJson<{
-    quotes?: SearchQuote[];
-    news?: NewsItem[];
-  }>(`${YAHOO_BASE}${path}`, signal);
 
-  return {
-    quotes: raw.quotes ?? [],
-    news: raw.news ?? [],
-  };
-}
+  const [symbolRaw, newsRaw] = await Promise.allSettled([
+    fetchJson<FinnhubSearchResult>(
+      finnhubUrl('/search', { q: query, exchange: 'US' }),
+      signal,
+    ),
+    fetchJson<FinnhubNews[]>(
+      finnhubUrl('/news', { category: 'general', minId: '0' }),
+      signal,
+    ),
+  ]);
 
-export async function fetchTrending(region = 'US', signal?: AbortSignal): Promise<string[]> {
-  const path = `/v1/finance/trending/${encodeURIComponent(region)}`;
-  const raw = await fetchJson<{
-    finance?: { result?: Array<{ quotes?: Array<{ symbol?: string }> }> };
-  }>(`${YAHOO_BASE}${path}`, signal);
+  const quotes: SearchQuote[] =
+    symbolRaw.status === 'fulfilled'
+      ? (symbolRaw.value?.result ?? [])
+          .filter((r) => r.type === 'Common Stock' || r.type === 'ETP' || r.type === 'ADR')
+          .slice(0, quotesCount)
+          .map((r) => ({
+            symbol: r.displaySymbol,
+            shortname: r.description,
+            longname: r.description,
+            typeDisp: r.type,
+          }))
+      : [];
 
-  const result = raw.finance?.result?.[0];
-  const symbols = (result?.quotes ?? [])
-    .map((q) => q.symbol)
-    .filter((s): s is string => Boolean(s));
-  return symbols;
+  const news: NewsItem[] =
+    newsRaw.status === 'fulfilled'
+      ? (newsRaw.value ?? [])
+          .filter((n) => n.headline && n.url)
+          .slice(0, newsCount)
+          .map((n) => ({
+            uuid: String(n.id),
+            title: n.headline,
+            publisher: n.source,
+            link: n.url,
+            providerPublishTime: n.datetime,
+          }))
+      : [];
+
+  return { quotes, news };
 }
 
 // ---------------------------------------------------------------------------
-// CBOE options
+// Trending — Finnhub doesn't have a trending endpoint on free tier,
+// so we return a curated default list of the most-traded US names.
+// ---------------------------------------------------------------------------
+
+const TRENDING_DEFAULTS = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'META', 'AMZN', 'GOOGL', 'SPY', 'AMD', 'COIN'];
+
+export async function fetchTrending(_region = 'US', _signal?: AbortSignal): Promise<string[]> {
+  return TRENDING_DEFAULTS;
+}
+
+// ---------------------------------------------------------------------------
+// CBOE options (unchanged — key-free, CORS proxied)
 // ---------------------------------------------------------------------------
 
 export async function fetchOptionsChain(symbol: string, signal?: AbortSignal): Promise<OptionsData> {
   const path = `/api/global/delayed_quotes/options/${encodeURIComponent(symbol)}.json`;
-  const raw = await fetchJson<{
-    data?: { options?: CboeOption[] };
-  }>(`${CBOE_BASE}${path}`, signal);
-
-  const options = assertResult(raw.data?.options, `No options data for ${symbol}`);
+  const url = `${CBOE_BASE}${path}`;
+  const attempts = buildCboeAttempts(url);
+  const text = await fetchWithAttempts(attempts, signal);
+  const raw = JSON.parse(text) as { data?: { options?: CboeOption[] } };
+  const options = raw.data?.options;
+  if (!options) throw new Error(`No options data for ${symbol}`);
   return { timestamp: '', options };
 }
 
 // ---------------------------------------------------------------------------
-// Market constants & helpers
+// Market constants & helpers (unchanged — callers import these)
 // ---------------------------------------------------------------------------
 
 export interface IndexDefinition {
@@ -344,7 +592,6 @@ export const INDEXES: IndexDefinition[] = [
   { symbol: '^VIX', name: 'VIX' },
 ];
 
-/** Symbols shown to logged-out visitors so the terminal isn't empty. */
 export const STARTER_WATCHLIST = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'META', 'GOOGL', 'TSLA', 'COIN'];
 
 export function normalizeSymbol(symbol: string): string {
@@ -352,7 +599,6 @@ export function normalizeSymbol(symbol: string): string {
 }
 
 export function isValidSymbol(symbol: string): boolean {
-  // Allow commodities (GC=F), FX pairs (USDCAD=X), indices (^VIX), crypto (BTC-USD).
   return /^[A-Z0-9^.\-=]{1,16}$/.test(normalizeSymbol(symbol));
 }
 
@@ -387,7 +633,6 @@ export function groupOptionsByExpiry(options: CboeOption[]): Map<number, { calls
     else bucket.puts.push(row);
     map.set(parsed.date, bucket);
   }
-  // Sort by strike within each bucket
   for (const bucket of map.values()) {
     bucket.calls.sort((a, b) => a.parsed.strike - b.parsed.strike);
     bucket.puts.sort((a, b) => a.parsed.strike - b.parsed.strike);
