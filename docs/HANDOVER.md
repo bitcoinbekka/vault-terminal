@@ -326,6 +326,12 @@ Updates: `git pull && VITE_MARKET_BASE=… npm run build && sudo systemctl reloa
 - Platform sandbox has **no Node runtime** — `tsc`/`eslint`/`vitest` can't run
   here; validate via careful review + `build_project`, and rely on the user's
   `npm test` locally.
+- **Yahoo rate-limits the server IP (HTTP 429).** Heavy scanner panels
+  (movers, sector rotation, discover, trending, extended-hours) are **lazy** —
+  wrapped in `LazyPanel` (`useInView` + IntersectionObserver) so they only
+  fetch when scrolled into view. Quote requests are also **staggered** (60ms
+  apart, capped at 3s) with 2 retries + backoff. Don't make the scanners eager
+  again — a full dashboard would fire ~170 requests at once and get throttled.
 - IV "RICH/CHEAP" thresholds are absolute heuristics, not historical
   percentiles (no IV history from the free feed).
 - **Derived events must use hashed symbol keys** (`symKey`) in `d`/`t` tags —

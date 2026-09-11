@@ -37,7 +37,7 @@ export function useYahooSearch(query: string, enabled = true) {
     queryFn: ({ signal }) =>
       fetchSearch(trimmed, { quotesCount: 5, newsCount: 8 }, signal),
     enabled: enabled && trimmed.length > 0,
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
     retry: 1,
   });
 }
@@ -70,11 +70,20 @@ export function useQuotes(symbols: string[]) {
   const unique = [...new Set(symbols.map(normalizeSymbol))];
 
   return useQueries({
-    queries: unique.map((symbol) => ({
+    queries: unique.map((symbol, index) => ({
       queryKey: ['yahoo', 'chart', symbol, DEFAULT_RANGE],
-      queryFn: ({ signal }) => fetchQuote(symbol, signal),
-      staleTime: 60_000,
-      retry: 1,
+      queryFn: async ({ signal }) => {
+        // Stagger bursts (a large watchlist can be 70+ symbols). Firing them all
+        // at once trips Yahoo's rate limiter (HTTP 429); spacing them out keeps
+        // us under it while still loading everything within a few seconds.
+        const delay = Math.min(index * 60, 3000);
+        if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+        return fetchQuote(symbol, signal);
+      },
+      staleTime: 2 * 60_000,
+      // Yahoo rate-limits the server IP (HTTP 429); back off and retry.
+      retry: 2,
+      retryDelay: (attempt: number) => 1000 * (attempt + 1),
       enabled: isValidSymbol(symbol),
     })),
   });

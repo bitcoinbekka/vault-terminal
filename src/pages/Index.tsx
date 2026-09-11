@@ -15,6 +15,7 @@ import { ExtendedHoursPanel } from '@/components/terminal/ExtendedHoursPanel';
 import { OptionsFlow } from '@/components/terminal/OptionsFlow';
 import { NewsFeed } from '@/components/terminal/NewsFeed';
 import { Panel } from '@/components/terminal/Panel';
+import { LazyPanel } from '@/components/terminal/LazyPanel';
 
 const Index = () => {
   useSeoMeta({
@@ -35,17 +36,29 @@ const Index = () => {
 
       <WatchlistPanel />
 
-      <MoversScanner />
+      {/* Heavy scanner panels are lazy: they only fetch when scrolled into
+          view, keeping the initial load small (Yahoo rate-limits the server IP). */}
+      <LazyPanel title="MARKET MOVERS">
+        <MoversScanner />
+      </LazyPanel>
 
-      <ExtendedHoursPanel />
+      <LazyPanel title="EXTENDED HOURS // OVERNIGHT MOVERS">
+        <ExtendedHoursPanel />
+      </LazyPanel>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <TrendingPanel />
-        <SectorRotation />
+        <LazyPanel title="TRENDING // MARKETS">
+          <TrendingPanel />
+        </LazyPanel>
+        <LazyPanel title="SECTOR ROTATION // TODAY'S LEADERS">
+          <SectorRotation />
+        </LazyPanel>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <SectorDiscover />
+        <LazyPanel title="DISCOVER BY SECTOR">
+          <SectorDiscover />
+        </LazyPanel>
         <OptionsFlow />
       </div>
 
