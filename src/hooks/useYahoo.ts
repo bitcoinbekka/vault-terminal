@@ -71,11 +71,9 @@ export function useQuotes(symbols: string[]) {
 
   return useQueries({
     queries: unique.map((symbol) => ({
-      // Batched quote feed — separate key from the full-OHLC chart queries.
       queryKey: ['yahoo', 'quote', symbol],
       queryFn: ({ signal }) => fetchQuote(symbol, signal),
       staleTime: 2 * 60_000,
-      // Yahoo rate-limits the server IP (HTTP 429); back off and retry.
       retry: 2,
       retryDelay: (attempt: number) => 1000 * (attempt + 1),
       enabled: isValidSymbol(symbol),

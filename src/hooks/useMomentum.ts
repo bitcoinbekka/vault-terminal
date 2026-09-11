@@ -28,6 +28,7 @@ export function useMomentum(symbols: string[]) {
     queries: unique.map((symbol) => ({
       queryKey: ['yahoo', 'chart', symbol, '1Y'],
       queryFn: ({ signal }) => fetchChart(symbol, '1y', '1d', signal),
+      // Cache momentum data for 30 minutes — it's slow-moving data
       staleTime: 10 * 60_000,
       retry: 1,
       enabled: isValidSymbol(symbol),
