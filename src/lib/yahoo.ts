@@ -20,6 +20,62 @@ const FINNHUB_BASE = 'https://finnhub.io/api/v1';
 const CBOE_BASE = 'https://cdn.cboe.com';
 const DEFAULT_PROXY_BASE = 'https://proxy.shakespeare.diy/?url=';
 
+/**
+ * Map Yahoo-style symbols to Finnhub equivalents.
+ * Finnhub uses different formats for indices, forex and futures.
+ *
+ * Indices:  ^GSPC  → OANDA:SPX500_USD  (or use forexcandles for ^VIX → skip candles)
+ * Crypto:   BTC-USD → BINANCE:BTCUSDT
+ * Futures:  GC=F   → OANDA:XAU_USD  (gold),  SI=F → OANDA:XAG_USD (silver)
+ * Forex:    USDCAD=X → OANDA:USD_CAD
+ */
+const SYMBOL_MAP: Record<string, string> = {
+  // Indices
+  '^GSPC':  'OANDA:SPX500_USD',
+  '^IXIC':  'OANDA:NAS100_USD',
+  '^DJI':   'OANDA:US30_USD',
+  '^RUT':   'OANDA:US2000_USD',
+  '^VIX':   'OANDA:US500V',
+  '^TNX':   'OANDA:US10YBOND',
+  // Futures / commodities
+  'GC=F':   'OANDA:XAU_USD',
+  'SI=F':   'OANDA:XAG_USD',
+  'CL=F':   'OANDA:CRUDE_OIL_USD',
+  'NG=F':   'OANDA:NATURAL_GAS_USD',
+  // Crypto
+  'BTC-USD': 'BINANCE:BTCUSDT',
+  'ETH-USD': 'BINANCE:ETHUSDT',
+  'SOL-USD': 'BINANCE:SOLUSDT',
+  'XRP-USD': 'BINANCE:XRPUSDT',
+  'DOGE-USD':'BINANCE:DOGEUSDT',
+  // Forex (USD base pairs)
+  'USDCAD=X': 'OANDA:USD_CAD',
+  'USDEUR=X': 'OANDA:USD_EUR',
+  'USDGBP=X': 'OANDA:USD_GBP',
+  'USDJPY=X': 'OANDA:USD_JPY',
+  'USDCHF=X': 'OANDA:USD_CHF',
+  'USDAUD=X': 'OANDA:USD_AUD',
+  'USDNZD=X': 'OANDA:USD_NZD',
+  'USDCNY=X': 'OANDA:USD_CNH',
+  'USDHKD=X': 'OANDA:USD_HKD',
+  'USDSGD=X': 'OANDA:USD_SGD',
+  'USDMXN=X': 'OANDA:USD_MXN',
+  'USDBRL=X': 'OANDA:USD_BRL',
+  'USDINR=X': 'OANDA:USD_INR',
+  'USDKRW=X': 'OANDA:USD_KRW',
+  'USDSEK=X': 'OANDA:USD_SEK',
+  'USDNOK=X': 'OANDA:USD_NOK',
+  'USDDKK=X': 'OANDA:USD_DKK',
+  'USDZAR=X': 'OANDA:USD_ZAR',
+  'USDTRY=X': 'OANDA:USD_TRY',
+  'USDPLN=X': 'OANDA:USD_PLN',
+};
+
+/** Translate a Yahoo-style symbol to Finnhub format. */
+function toFinnhubSymbol(symbol: string): string {
+  return SYMBOL_MAP[symbol.toUpperCase()] ?? symbol.toUpperCase();
+}
+
 function getViteEnv(name: string): string | undefined {
   try {
     const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
@@ -402,17 +458,29 @@ export async function fetchChart(
   signal?: AbortSignal,
 ): Promise<QuoteData> {
   const normalized = normalizeSymbol(symbol);
+  const finnhubSym = toFinnhubSymbol(normalized);
   const resolution = toFinnhubResolution(interval);
   const { from, to } = rangeToFromTo(range);
 
+  // Choose correct candle endpoint based on symbol type
+  const isCrypto = finnhubSym.includes(':') && finnhubSym.startsWith('BINANCE:');
+  const isForexOrIndex = finnhubSym.startsWith('OANDA:');
+  const candleEndpoint = isCrypto
+    ? '/crypto/candle'
+    : isForexOrIndex
+      ? '/forex/candle'
+      : '/stock/candle';
+
   const [quoteRaw, candlesRaw, profileRaw] = await Promise.allSettled([
-    fetchJson<FinnhubQuote>(finnhubUrl('/quote', { symbol: normalized }), signal),
+    fetchJson<FinnhubQuote>(finnhubUrl('/quote', { symbol: finnhubSym }), signal),
     fetchJson<FinnhubCandles>(
-      finnhubUrl('/stock/candle', { symbol: normalized, resolution, from, to }),
+      finnhubUrl(candleEndpoint, { symbol: finnhubSym, resolution, from, to }),
       signal,
     ),
-    // Profile gives us name + currency; best-effort only.
-    fetchJson<FinnhubProfile>(finnhubUrl('/stock/profile2', { symbol: normalized }), signal),
+    // Profile gives us name + currency; best-effort only (stock only).
+    isForexOrIndex || isCrypto
+      ? Promise.resolve({} as FinnhubProfile)
+      : fetchJson<FinnhubProfile>(finnhubUrl('/stock/profile2', { symbol: finnhubSym }), signal),
   ]);
 
   if (quoteRaw.status === 'rejected') {
@@ -432,6 +500,7 @@ export async function fetchChart(
   const profile: FinnhubProfile | null =
     profileRaw.status === 'fulfilled' ? profileRaw.value : null;
 
+  // Always return the original Yahoo-style symbol so callers don't break
   return buildQuoteData(normalized, quote, candles, profile, interval);
 }
 
